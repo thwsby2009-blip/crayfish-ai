@@ -46,7 +46,7 @@ if img_file is not None:
         with st.spinner("🤖 AI 正在辨識中..."):
             try:
                 # 修正：改回你之前測試成功的 2.0 版本
-                model = genai.GenerativeModel('gemini-2.0-flash-lite-preview-02-05') 
+                model = genai.GenerativeModel('gemini-2.5-flash-lite') 
                 
                 prompt = """請辨識照片中的植物。回覆格式：
                 中文名稱：xxx
