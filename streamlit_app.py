@@ -25,23 +25,30 @@ supabase: Client = init_connection()
 # ====================== 2. 頁面佈局 ======================
 st.set_page_config(page_title="植物發現地圖", layout="centered", page_icon="🌿")
 st.title("🌿 全民植物發現地圖")
-st.write("上傳植物照片，AI 幫你辨識並在地圖上留下紀錄！")
+st.write("拍照或上傳植物，AI 幫你辨識並標記在地圖上！")
 
-# ====================== 3. 照片上傳 (已移除相機鏡頭) ======================
-img_file = st.file_uploader("📁 選取植物相片", type=["png", "jpg", "jpeg"])
+# ====================== 3. 照片輸入區 ======================
+col1, col2 = st.columns(2)
+with col1:
+    cam_in = st.camera_input("📸 拍照辨識")
+with col2:
+    file_in = st.file_uploader("📁 上傳相片", type=["png", "jpg", "jpeg"])
+
+# 優先使用相機拍攝的照片，若無則使用上傳的照片
+img_file = cam_in if cam_in is not None else file_in
 
 # ====================== 4. 主要邏輯 ======================
 if img_file is not None:
     st.image(img_file, width=300, caption="已讀取照片")
 
-    # A. AI 辨識 (使用 Session State 避免重複執行)
+    # A. AI 辨識 (使用你指定的 2.5 版本模型)
     if "ai_cache" not in st.session_state or st.session_state.get("last_img") != img_file.name:
         with st.spinner("🤖 AI 正在辨識中..."):
             try:
-                # 使用你環境中成功的模型版本
-                model = genai.GenerativeModel('gemini-2.0-flash-lite-preview-02-05')
+                # 修正：強制指定為 2.5 版本
+                model = genai.GenerativeModel('gemini-2.5-flash-lite')
                 
-                prompt = """請辨識照片中的植物。回覆格式：
+                prompt = """請詳細辨識這張照片中的植物。回覆格式：
                 中文名稱：xxx
                 學名：xxx
                 科別：xxx
@@ -70,18 +77,17 @@ if img_file is not None:
 
     plant_name = st.text_input("確認或修改植物名稱", value=default_name)
 
-    # C. 上傳與寫入資料庫
-    if st.button("🚀 確認並上傳到地圖", type="primary"):
+    # C. 確認上傳按鈕 (縮排檢查)
+    if st.button("🚀 確認並發布到地圖", type="primary"):
         if not plant_name:
             st.warning("請填寫植物名稱！")
         else:
             try:
-                with st.spinner("正在上傳至雲端..."):
-                    # 1. 處理檔名
+                with st.spinner("正在上傳至雲端儲存空間..."):
                     ts = int(time.time())
                     file_path = f"public/plant_{ts}.jpg"
 
-                    # 2. 上傳照片到 Storage
+                    # 上傳照片
                     img_bytes = img_file.getvalue()
                     supabase.storage.from_("plant-images").upload(
                         path=file_path,
@@ -90,7 +96,7 @@ if img_file is not None:
                     )
                     img_url = supabase.storage.from_("plant-images").get_public_url(file_path)
 
-                    # 3. 寫入資料庫 (交由資料庫自動生成 ID)
+                    # 寫入資料庫 (移除手動 ID，交給資料庫自動生成)
                     data = {
                         "name": plant_name,
                         "image_url": img_url,
@@ -111,18 +117,16 @@ if img_file is not None:
 st.divider()
 
 try:
-    # 抓取資料庫所有紀錄
     res = supabase.table("plants").select("*").order("created_at", desc=True).execute()
     records = res.data
 
     if records:
         st.subheader("🌍 植物分佈地圖")
         df = pd.DataFrame(records)
-        # Streamlit 地圖需要 lat, lon 欄位名稱
         df_map = df.rename(columns={"latitude": "lat", "longitude": "lon"})
         st.map(df_map)
 
-        st.subheader("📍 最近發現")
+        st.subheader("📍 最近發現紀錄")
         for p in records[:10]:
             c1, c2 = st.columns([1, 2])
             with c1:
@@ -134,6 +138,6 @@ try:
                     st.write(p.get('ai_result', ''))
             st.divider()
     else:
-        st.info("目前還沒有資料點，快去上傳第一張吧！")
+        st.info("目前地圖上還沒有資料。")
 except Exception as e:
-    st.write("資料載入中...")
+    st.write("資料同步中...")
