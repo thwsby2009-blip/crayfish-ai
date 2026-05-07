@@ -46,7 +46,7 @@ if img_file is not None:
     # 呼叫 Gemini 辨識
     with st.spinner("🤖 AI 正在辨識植物..."):
         try:
-            model = genai.GenerativeModel('gemini-1.5-flash')  # 可改成 gemini-1.5-pro 如果需要更高準確度
+            model = genai.GenerativeModel('gemini-2.5-flash')  # 可改成 gemini-1.5-pro 如果需要更高準確度
             
             prompt = """請詳細辨識這張照片中的植物。
             請用以下格式回覆：
