@@ -107,7 +107,6 @@ if img_file is not None:
 
                     # C. 寫入資料庫 (手動給 id)
                     data = {
-                        "id": str(ts),
                         "name": plant_name,
                         "image_url": img_url,
                         "latitude": 25.0330,
