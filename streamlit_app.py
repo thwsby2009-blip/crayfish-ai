@@ -5,7 +5,6 @@ import google.generativeai as genai
 import pandas as pd
 
 # ====================== 1. 設定區 ======================
-# 從 Secrets 讀取金鑰，這樣最安全
 SUPABASE_URL = "https://sxhhphxdkqxkjveqkwtc.supabase.co"
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY")
 GEMINI_API_KEY = st.secrets.get("GEMINI_KEY")
@@ -26,27 +25,21 @@ supabase: Client = init_connection()
 # ====================== 2. 頁面佈局 ======================
 st.set_page_config(page_title="植物發現地圖", layout="centered", page_icon="🌿")
 st.title("🌿 全民植物發現地圖")
-st.write("拍下植物，AI 幫你辨識並在地圖上留下紀錄！")
+st.write("上傳植物照片，AI 幫你辨識並在地圖上留下紀錄！")
 
-# ====================== 3. 照片輸入 ======================
-col1, col2 = st.columns(2)
-with col1:
-    cam_in = st.camera_input("📸 拍攝植物")
-with col2:
-    file_in = st.file_uploader("📁 選取相片", type=["png", "jpg", "jpeg"])
+# ====================== 3. 照片上傳 (已移除相機鏡頭) ======================
+img_file = st.file_uploader("📁 選取植物相片", type=["png", "jpg", "jpeg"])
 
-img_file = cam_in if cam_in is not None else file_in
-
-# ====================== 4. AI 辨識邏輯 ======================
+# ====================== 4. 主要邏輯 ======================
 if img_file is not None:
-    st.image(img_file, width=300, caption="已選取照片")
+    st.image(img_file, width=300, caption="已讀取照片")
 
-   # 使用 Session State 確保改名字時不會重新跑 AI 辨識
+    # A. AI 辨識 (使用 Session State 避免重複執行)
     if "ai_cache" not in st.session_state or st.session_state.get("last_img") != img_file.name:
         with st.spinner("🤖 AI 正在辨識中..."):
             try:
-                # 修正：改回你之前測試成功的 2.0 版本
-                model = genai.GenerativeModel('gemini-2.5-flash-lite') 
+                # 使用你環境中成功的模型版本
+                model = genai.GenerativeModel('gemini-2.0-flash-lite-preview-02-05')
                 
                 prompt = """請辨識照片中的植物。回覆格式：
                 中文名稱：xxx
@@ -54,49 +47,41 @@ if img_file is not None:
                 科別：xxx
                 簡介：xxx（50字內）"""
                 
-                # 取得照片內容
-                img_data = img_file.getvalue()
-                
-                # 同時確保 mime_type 抓取正確，若抓不到則預設為 image/jpeg
-                m_type = img_file.type if img_file.type else "image/jpeg"
-                
                 response = model.generate_content([
                     prompt,
-                    {"mime_type": m_type, "data": img_data}
+                    {"mime_type": img_file.type, "data": img_file.getvalue()}
                 ])
-                
-                if response.text:
-                    st.session_state.ai_cache = response.text
-                    st.session_state.last_img = img_file.name
-                else:
-                    st.session_state.ai_cache = "AI 回傳內容為空"
-                    
+                st.session_state.ai_cache = response.text
+                st.session_state.last_img = img_file.name
             except Exception as e:
-                st.error(f"❌ 辨識出錯原因：{str(e)}") 
+                st.error(f"AI 辨識發生錯誤：{e}")
                 st.session_state.ai_cache = "辨識失敗"
 
     ai_result = st.session_state.ai_cache
     st.info(f"💡 AI 辨識結果：\n{ai_result}")
 
-    # 自動提取中文名稱
+    # B. 提取名稱
     default_name = ""
     if "中文名稱：" in ai_result:
-        default_name = ai_result.split("中文名稱：")[1].split("\n")[0].strip()
+        try:
+            default_name = ai_result.split("中文名稱：")[1].split("\n")[0].strip()
+        except:
+            default_name = ""
 
     plant_name = st.text_input("確認或修改植物名稱", value=default_name)
 
-    # ====================== 5. 上傳與寫入 ======================
-   if st.button("🚀 確認並上傳到地圖", type="primary"):
+    # C. 上傳與寫入資料庫
+    if st.button("🚀 確認並上傳到地圖", type="primary"):
         if not plant_name:
             st.warning("請填寫植物名稱！")
         else:
             try:
-                with st.spinner("正在上傳..."):
-                    # A. 處理檔名
+                with st.spinner("正在上傳至雲端..."):
+                    # 1. 處理檔名
                     ts = int(time.time())
                     file_path = f"public/plant_{ts}.jpg"
 
-                    # B. 上傳照片
+                    # 2. 上傳照片到 Storage
                     img_bytes = img_file.getvalue()
                     supabase.storage.from_("plant-images").upload(
                         path=file_path,
@@ -105,7 +90,7 @@ if img_file is not None:
                     )
                     img_url = supabase.storage.from_("plant-images").get_public_url(file_path)
 
-                    # C. 寫入資料庫 (移除手動 ID，交給資料庫處理)
+                    # 3. 寫入資料庫 (交由資料庫自動生成 ID)
                     data = {
                         "name": plant_name,
                         "image_url": img_url,
@@ -120,10 +105,9 @@ if img_file is not None:
                     time.sleep(1)
                     st.rerun()
             except Exception as e:
-                # 這裡如果再噴錯，請跟我說詳細內容
-                st.error(f"上傳失敗詳細原因：{e}")
+                st.error(f"上傳失敗原因：{e}")
 
-# ====================== 6. 地圖與紀錄展示 ======================
+# ====================== 5. 地圖與紀錄展示 ======================
 st.divider()
 
 try:
@@ -139,7 +123,7 @@ try:
         st.map(df_map)
 
         st.subheader("📍 最近發現")
-        for p in records[:5]:
+        for p in records[:10]:
             c1, c2 = st.columns([1, 2])
             with c1:
                 st.image(p['image_url'], use_container_width=True)
@@ -150,6 +134,6 @@ try:
                     st.write(p.get('ai_result', ''))
             st.divider()
     else:
-        st.info("目前還沒有資料點，快去拍第一張吧！")
+        st.info("目前還沒有資料點，快去上傳第一張吧！")
 except Exception as e:
-    st.write("載入地圖中...")
+    st.write("資料載入中...")
