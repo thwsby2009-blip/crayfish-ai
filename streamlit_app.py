@@ -41,25 +41,36 @@ img_file = cam_in if cam_in is not None else file_in
 if img_file is not None:
     st.image(img_file, width=300, caption="已選取照片")
 
-    # 使用 Session State 確保改名字時不會重新跑 AI 辨識（省錢省次數）
+   # 使用 Session State 確保改名字時不會重新跑 AI 辨識
     if "ai_cache" not in st.session_state or st.session_state.get("last_img") != img_file.name:
         with st.spinner("🤖 AI 正在辨識中..."):
             try:
-                model = genai.GenerativeModel('gemini-1.5-flash')
+                # 這裡改用最通用的模型名稱，並加上報錯捕捉
+                model = genai.GenerativeModel('gemini-1.5-flash-latest') 
+                
                 prompt = """請辨識照片中的植物。回覆格式：
                 中文名稱：xxx
                 學名：xxx
                 科別：xxx
                 簡介：xxx（50字內）"""
                 
+                # 取得照片內容
+                img_data = img_file.getvalue()
+                
                 response = model.generate_content([
                     prompt,
-                    {"mime_type": img_file.type, "data": img_file.getvalue()}
+                    {"mime_type": "image/jpeg", "data": img_data}
                 ])
-                st.session_state.ai_cache = response.text
-                st.session_state.last_img = img_file.name
+                
+                if response.text:
+                    st.session_state.ai_cache = response.text
+                    st.session_state.last_img = img_file.name
+                else:
+                    st.session_state.ai_cache = "AI 回傳內容為空"
+                    
             except Exception as e:
-                st.error(f"AI 辨識發生錯誤：{e}")
+                # 這裡會印出真正的錯誤原因，請跟我說這行顯示什麼
+                st.error(f"❌ 辨識出錯原因：{str(e)}") 
                 st.session_state.ai_cache = "辨識失敗"
 
     ai_result = st.session_state.ai_cache
