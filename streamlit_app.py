@@ -3,8 +3,8 @@ from supabase import create_client, Client
 import pandas as pd
 
 # 1. 初始化 Supabase 連線
-SUPABASE_URL = "你的_SUPABASE_URL"
-SUPABASE_KEY = "你的_SUPABASE_ANON_KEY"
+SUPABASE_URL = "https://sxhhphxdkqxkjveqkwtc.supabase.co"
+SUPABASE_KEY = "sb_publishable_2usRSc_p_POkI32j0RczJA_vz2smPM0"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.title("🌿 全民植物發現地圖")
