@@ -1,71 +1,133 @@
 import streamlit as st
+from supabase import create_client, Client
 import time
-# --- 初始化 Supabase 連線 ---
-# 請確保你之前填入的網址和金鑰還在
+import google.generativeai as genai
+
+# ====================== 設定區 ======================
 SUPABASE_URL = "https://sxhhphxdkqxkjveqkwtc.supabase.co"
 SUPABASE_KEY = "sb_publishable_2usRSc_p_POkI32j0RczJA_vz2smPM0"
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# --- 1. 照片輸入區 (兩種方式並存) ---
-st.subheader("第一步：提供植物照片")
+# 把你的 Gemini API Key 放在這裡（推薦使用 st.secrets）
+GEMINI_API_KEY = st.secrets.get("GEMINI_KEY", None)   # 建議這樣寫
 
-# 建立兩欄位，讓畫面好看一點
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+else:
+    st.error("❌ 未設定 GEMINI_KEY，請在 Streamlit Cloud 的 Secrets 中設定")
+
+# 初始化 Supabase
+@st.cache_resource
+def init_connection():
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
+
+supabase: Client = init_connection()
+
+# ====================== 頁面設定 ======================
+st.set_page_config(page_title="植物發現地圖", layout="centered", page_icon="🌿")
+st.title("🌿 全民植物發現地圖")
+st.write("拍下植物，AI 幫你辨識！")
+
+# ====================== 拍照 / 上傳 ======================
 col1, col2 = st.columns(2)
 
 with col1:
-    cam_file = st.camera_input("直接拍照")
+    img_file = st.camera_input("📸 拍攝植物照片")
 
 with col2:
-    upload_file = st.file_uploader("選取檔案或手機拍照", type=["jpg", "png", "jpeg"])
+    if img_file is None:
+        img_file = st.file_uploader("📁 或從相簿選擇照片", 
+                                   type=["png", "jpg", "jpeg", "heic"])
 
-# 判斷使用者是用哪種方式提供照片
-img_file = cam_file if cam_file is not None else upload_file
-
-# --- 2. 處理上傳邏輯 ---
+# ====================== 主要邏輯 ======================
 if img_file is not None:
-    st.image(img_file, caption="待上傳的照片", use_container_width=True)
-    
-    # 輸入植物名稱
-    plant_name = st.text_input("這朵花/植物叫什麼名字？", placeholder="例如：百合花")
-    
-    if st.button("確認上傳成果"):
-        if not plant_name:
-            st.warning("請先輸入植物名稱喔！")
+    st.success("✅ 照片已成功讀取")
+    st.image(img_file, width=300)
+
+    # 呼叫 Gemini 辨識
+    with st.spinner("🤖 AI 正在辨識植物..."):
+        try:
+            model = genai.GenerativeModel('gemini-1.5-flash')  # 可改成 gemini-1.5-pro 如果需要更高準確度
+            
+            prompt = """請詳細辨識這張照片中的植物。
+            請用以下格式回覆：
+            中文名稱：xxx
+            學名：xxx
+            科別：xxx
+            簡介：xxx（50字以內）"""
+
+            response = model.generate_content([
+                prompt,
+                {
+                    "mime_type": img_file.type,
+                    "data": img_file.getvalue()
+                }
+            ])
+            
+            ai_result = response.text
+            st.info(f"🌱 AI 辨識結果：\n{ai_result}")
+            
+        except Exception as e:
+            st.error(f"AI 辨識失敗：{e}")
+            ai_result = "AI 辨識失敗"
+
+    # 使用者確認名稱
+    plant_name = st.text_input(
+        "植物名稱（可修改）", 
+        value=ai_result.split("中文名稱：")[1].split("\n")[0] if "中文名稱：" in ai_result else "",
+        placeholder="請輸入或修改植物名稱"
+    )
+
+    # 上傳按鈕
+    if st.button("✅ 確認並上傳到地圖", type="primary"):
+        if not plant_name.strip():
+            st.error("請輸入植物名稱")
         else:
-            with st.spinner("正在上傳至雲端..."):
-                try:
-                    # 產生唯一的檔名
-                    file_name = f"{int(time.time())}_{img_file.name}"
+            try:
+                with st.spinner("正在上傳..."):
+                    ts = int(time.time())
+                    file_ext = img_file.type.split("/")[-1] if "/" in img_file.type else "jpg"
+                    file_name = f"plant_{ts}.{file_ext}"
                     file_path = f"public/{file_name}"
-                    
-                    # 讀取檔案內容
-                    file_content = img_file.getvalue()
-                    
-                    # 1. 上傳到 Supabase Storage (儲存桶名稱請確認為 plant-images)
-                    res = supabase.storage.from_("plant-images").upload(
+
+                    # 上傳到 Supabase Storage
+                    img_bytes = img_file.getvalue()
+                    supabase.storage.from_("plant-images").upload(
                         path=file_path,
-                        file=file_content,
+                        file=img_bytes,
                         file_options={"content-type": img_file.type}
                     )
-                    
-                    # 2. 取得公開網址
+
                     img_url = supabase.storage.from_("plant-images").get_public_url(file_path)
-                    
-                    # 3. 寫入資料庫 (假設你的 Table 叫 plants)
-                    # 這裡建議加上經緯度(如有獲取)，否則先傳名稱與網址
+
+                    # 寫入資料庫
                     data = {
-                        "name": plant_name,
+                        "name": plant_name.strip(),
                         "image_url": img_url,
-                        "created_at": "now()"
+                        "latitude": 25.0330,   # 之後可改成真實 GPS
+                        "longitude": 121.5654,
+                        "ai_result": ai_result
                     }
+
                     supabase.table("plants").insert(data).execute()
-                    
-                    st.success(f"🎉 成功！{plant_name} 已記錄在地圖上。")
+
                     st.balloons()
-                    time.sleep(2)
-                    st.rerun()
-                    
-                except Exception as e:
-                    st.error(f"上傳失敗，錯誤訊息：{e}")
+                    st.success(f"🎉 上傳成功！「{plant_name}」已標記在地圖上！")
+
+            except Exception as e:
+                st.error(f"上傳失敗：{e}")
+
 else:
-    st.info("💡 提示：若無法開啟相機，請嘗試右側的「選取檔案」按鈕。")
+    st.info("💡 請使用上方按鈕拍照或從相簿選取照片")
+
+# ====================== 最近發現 ======================
+st.divider()
+st.subheader("📍 最近的植物發現")
+try:
+    response = supabase.table("plants").select("*").order("created_at", desc=True).limit(5).execute()
+    for plant in response.data:
+        st.image(plant['image_url'], width=200)
+        st.write(f"🌱 **{plant['name']}**")
+        st.caption(f"上傳時間：{plant.get('created_at', '未知')[:16]}")
+        st.divider()
+except:
+    st.write("目前還沒有發現紀錄。")
