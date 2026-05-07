@@ -45,8 +45,8 @@ if img_file is not None:
     if "ai_cache" not in st.session_state or st.session_state.get("last_img") != img_file.name:
         with st.spinner("🤖 AI 正在辨識中..."):
             try:
-                # 這裡改用最通用的模型名稱，並加上報錯捕捉
-                model = genai.GenerativeModel('gemini-1.5-flash-latest') 
+                # 修正：改回你之前測試成功的 2.0 版本
+                model = genai.GenerativeModel('gemini-2.0-flash-lite-preview-02-05') 
                 
                 prompt = """請辨識照片中的植物。回覆格式：
                 中文名稱：xxx
@@ -57,9 +57,12 @@ if img_file is not None:
                 # 取得照片內容
                 img_data = img_file.getvalue()
                 
+                # 同時確保 mime_type 抓取正確，若抓不到則預設為 image/jpeg
+                m_type = img_file.type if img_file.type else "image/jpeg"
+                
                 response = model.generate_content([
                     prompt,
-                    {"mime_type": "image/jpeg", "data": img_data}
+                    {"mime_type": m_type, "data": img_data}
                 ])
                 
                 if response.text:
@@ -69,7 +72,6 @@ if img_file is not None:
                     st.session_state.ai_cache = "AI 回傳內容為空"
                     
             except Exception as e:
-                # 這裡會印出真正的錯誤原因，請跟我說這行顯示什麼
                 st.error(f"❌ 辨識出錯原因：{str(e)}") 
                 st.session_state.ai_cache = "辨識失敗"
 
