@@ -16,7 +16,11 @@ lat = st.number_input("緯度 (Latitude)", value=25.0330, format="%.6f")
 lon = st.number_input("經度 (Longitude)", value=121.5654, format="%.6f")
 
 # 3. 拍照功能
-img_file = st.camera_input("拍下植物的照片")
+# 使用檔案上傳器，這在手機上相容性最好
+picture = st.file_uploader("拍下照片或從相簿上傳", type=["jpg", "png", "jpeg"])
+
+if picture:
+    st.image(picture, caption="已選取的照片")
 
 if img_file:
     plant_name = st.text_input("這株植物叫什麼名字？", "未知植物")
