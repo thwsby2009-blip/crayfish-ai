@@ -1,4 +1,5 @@
 streamlit
 supabase
 pandas
+google-generativeai
 streamlit-js-eval
