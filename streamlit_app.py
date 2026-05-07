@@ -4,10 +4,8 @@ import time
 # 請確保你之前填入的網址和金鑰還在
 SUPABASE_URL = "https://sxhhphxdkqxkjveqkwtc.supabase.co"
 SUPABASE_KEY = "sb_publishable_2usRSc_p_POkI32j0RczJA_vz2smPM0"
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# 關鍵的一行：定義 'supabase' 變數
-if 'supabase' not in locals():
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # --- 1. 照片輸入區 (兩種方式並存) ---
 st.subheader("第一步：提供植物照片")
 
