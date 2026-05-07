@@ -15,19 +15,27 @@ st.subheader("1. 標記位置與拍照")
 lat = st.number_input("緯度 (Latitude)", value=25.0330, format="%.6f")
 lon = st.number_input("經度 (Longitude)", value=121.5654, format="%.6f")
 
-# 3. 拍照功能
-# 使用檔案上傳器，這在手機上相容性最好
-picture = st.file_uploader("拍下照片或從相簿上傳", type=["jpg", "png", "jpeg"])
+# --- 拍照/選擇照片區塊 ---
+picture = st.file_uploader("第一步：選取植物照片", type=["jpg", "png", "jpeg"])
 
-if picture:
-    st.image(picture, caption="已選取的照片")
+# 只有當照片「已經選好」時，才會顯示後續的輸入框和按鈕
+if picture is not None:
+    # 1. 預覽照片
+    st.image(picture, caption="待上傳的照片", use_container_width=True)
     
-    # --- 注意這裡：把原本的 img_file 改成 picture ---
-    plant_name = st.text_input("這株植物叫什麼名字？", "未知植物")
+    # 2. 讓使用者輸入名字
+    plant_name = st.text_input("第二步：這株植物叫什麼名字？", value="未知植物")
     
-    if st.button("上傳發現紀錄"):
-        # 這裡放你上傳到 Supabase 的後續程式碼...
-        st.write(f"準備上傳：{plant_name}")
+    # 3. 關鍵的上傳按鈕
+    # 注意：這一行必須跟上面的 plant_name 對齊（有縮排）
+    submit_button = st.button("第三步：點我上傳到地圖")
+    
+    if submit_button:
+        st.info("正在連線資料庫並上傳圖片...")
+        
+        # 這裡是你原本寫的 Supabase 上傳邏輯（例如：supabase.storage.from...）
+        # 請確保這裡的變數名稱也是用 picture
+        # ... (你的上傳代碼)
         # A. 上傳圖片到 Supabase Storage
         file_path = f"public/{img_file.name}"
         response = supabase.storage.from_("plant-images").upload(file_path, img_file.getvalue())
