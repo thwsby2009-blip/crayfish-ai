@@ -3,7 +3,6 @@ from supabase import create_client, Client
 import google.generativeai as genai
 import pandas as pd
 import time
-import uuid
 
 # ====================== 1. 設定 ======================
 SUPABASE_URL = "https://sxhhphxdkqxkjveqkwtc.supabase.co"
@@ -22,47 +21,39 @@ supabase: Client = init_supabase()
 st.set_page_config(page_title="植物發現地圖", layout="centered", page_icon="🌿")
 st.title("🌿 全民植物發現地圖")
 
-# ====================== 3. GPS（手機穩定版） ======================
+# ====================== 3. GPS（已修正穩定版） ======================
+st.subheader("📍 第一步：確認你的位置")
 
-st.subheader("📍 定位")
-
-# 初始化預設（台北101）
+# 預設座標（台北101）
 if "lat" not in st.session_state:
     st.session_state.lat = 25.0330
     st.session_state.lon = 121.5654
 
-# 👉 GPS Button（手機原生）
-st.markdown("""
-<button onclick="
-navigator.geolocation.getCurrentPosition(
-  function(pos){
-    window.location.href = `?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`;
-  },
-  function(err){
-    alert('GPS 失敗: ' + err.message);
-  }
-)
-"
-style="
-padding:10px 20px;
-font-size:16px;
-background:#4CAF50;
-color:white;
-border:none;
-border-radius:8px;
-">
-📍 取得目前位置
-</button>
-""", unsafe_allow_html=True)
+# 👉 按鈕（保留 Streamlit UI，不破壞拍照）
+if st.button("🎯 取得GPS定位"):
 
-# 讀 URL GPS
+    st.markdown("""
+    <script>
+    navigator.geolocation.getCurrentPosition(
+        function(pos){
+            window.location.href =
+            `?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`;
+        },
+        function(err){
+            alert("GPS失敗：" + err.message);
+        }
+    );
+    </script>
+    """, unsafe_allow_html=True)
+
+# 👉 讀 URL 回傳 GPS
 query = st.query_params
 
 if "lat" in query and "lon" in query:
     try:
         st.session_state.lat = float(query["lat"])
         st.session_state.lon = float(query["lon"])
-        st.success("✅ GPS 已更新")
+        st.success("✅ GPS已更新")
     except:
         pass
 
@@ -70,24 +61,23 @@ st.write(f"目前座標：{st.session_state.lat:.5f}, {st.session_state.lon:.5f}
 
 st.divider()
 
-# ====================== 4. 上傳區 ======================
+# ====================== 4. 拍照 / 上傳（完全不動） ======================
 col1, col2 = st.columns(2)
 
 with col1:
-    cam = st.camera_input("📸 拍照")
+    cam_in = st.camera_input("📸 拍照辨識")
 
 with col2:
-    file = st.file_uploader("📁 上傳", type=["png", "jpg", "jpeg"])
+    file_in = st.file_uploader("📁 上傳相片", type=["png", "jpg", "jpeg"])
 
-img_file = cam if cam else file
+img_file = cam_in if cam_in is not None else file_in
 
 # ====================== 5. AI 辨識 ======================
-if img_file:
+if img_file is not None:
 
     st.image(img_file, width=300)
 
-    # cache 避免重複跑 AI
-    if "last_img" not in st.session_state or st.session_state.last_img != img_file.name:
+    if "ai_cache" not in st.session_state or st.session_state.get("last_img") != img_file.name:
 
         with st.spinner("🤖 AI 辨識中..."):
             model = genai.GenerativeModel("gemini-2.5-flash-lite")
@@ -128,55 +118,49 @@ if img_file:
                     "description": response.text
                 }
 
-            st.session_state.ai_data = ai_data
+            st.session_state.ai_cache = ai_data
             st.session_state.last_img = img_file.name
 
-    ai_data = st.session_state.ai_data
+    ai_data = st.session_state.ai_cache
 
-    # 顯示
     st.markdown("### 🌱 辨識結果")
     st.write("中文名稱：", ai_data["name_zh"])
     st.write("學名：", ai_data["scientific_name"])
     st.write("科別：", ai_data["family"])
     st.write("簡介：", ai_data["description"])
 
-    plant_name = st.text_input("確認名稱", value=ai_data["name_zh"])
+    plant_name = st.text_input("確認植物名稱", value=ai_data["name_zh"])
 
     # ====================== 6. 上傳 ======================
     if st.button("🚀 上傳到地圖"):
 
         try:
-            with st.spinner("上傳中..."):
+            ts = int(time.time())
+            file_name = f"plant_{ts}.jpg"
 
-                file_ext = "jpg"
-                file_name = f"{uuid.uuid4().hex}.{file_ext}"
+            img_bytes = img_file.getvalue()
 
-                img_bytes = img_file.getvalue()
+            supabase.storage.from_("plant-images").upload(
+                file_name,
+                img_bytes,
+                {"content-type": img_file.type}
+            )
 
-                # upload image
-                supabase.storage.from_("plant-images").upload(
-                    file_name,
-                    img_bytes,
-                    {"content-type": img_file.type}
-                )
+            img_url = supabase.storage.from_("plant-images").get_public_url(file_name)
 
-                img_url = supabase.storage.from_("plant-images").get_public_url(file_name)
+            data = {
+                "name": plant_name,
+                "image_url": img_url,
+                "latitude": st.session_state.lat,
+                "longitude": st.session_state.lon,
+                "ai_result": str(ai_data)
+            }
 
-                # insert db
-                data = {
-                    "name": plant_name,
-                    "image_url": img_url,
-                    "latitude": st.session_state.lat,
-                    "longitude": st.session_state.lon,
-                    "ai_result": str(ai_data)
-                }
+            supabase.table("plants").insert(data).execute()
 
-                supabase.table("plants").insert(data).execute()
-
-                st.success("🎉 上傳成功")
-                st.balloons()
-
-                st.rerun()
+            st.success("🎉 上傳成功")
+            st.balloons()
+            st.rerun()
 
         except Exception as e:
             st.error(f"上傳失敗：{e}")
