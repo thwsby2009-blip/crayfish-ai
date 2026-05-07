@@ -86,17 +86,17 @@ if img_file is not None:
     plant_name = st.text_input("確認或修改植物名稱", value=default_name)
 
     # ====================== 5. 上傳與寫入 ======================
-    if st.button("🚀 確認並上傳到地圖", type="primary"):
+   if st.button("🚀 確認並上傳到地圖", type="primary"):
         if not plant_name:
             st.warning("請填寫植物名稱！")
         else:
             try:
-                with st.spinner("正在上傳至雲端..."):
-                    # A. 檔名處理
+                with st.spinner("正在上傳..."):
+                    # A. 處理檔名
                     ts = int(time.time())
                     file_path = f"public/plant_{ts}.jpg"
 
-                    # B. 上傳照片到 Storage
+                    # B. 上傳照片
                     img_bytes = img_file.getvalue()
                     supabase.storage.from_("plant-images").upload(
                         path=file_path,
@@ -105,7 +105,7 @@ if img_file is not None:
                     )
                     img_url = supabase.storage.from_("plant-images").get_public_url(file_path)
 
-                    # C. 寫入資料庫 (手動給 id)
+                    # C. 寫入資料庫 (移除手動 ID，交給資料庫處理)
                     data = {
                         "name": plant_name,
                         "image_url": img_url,
@@ -120,7 +120,8 @@ if img_file is not None:
                     time.sleep(1)
                     st.rerun()
             except Exception as e:
-                st.error(f"上傳失敗：{e}")
+                # 這裡如果再噴錯，請跟我說詳細內容
+                st.error(f"上傳失敗詳細原因：{e}")
 
 # ====================== 6. 地圖與紀錄展示 ======================
 st.divider()
