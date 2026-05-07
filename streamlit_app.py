@@ -4,13 +4,13 @@ import time
 import google.generativeai as genai
 import pandas as pd
 
-# ====================== 1. 設定區 ======================
+# ====================== 1. 核心設定 ======================
 SUPABASE_URL = "https://sxhhphxdkqxkjveqkwtc.supabase.co"
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY")
 GEMINI_API_KEY = st.secrets.get("GEMINI_KEY")
 
 if not GEMINI_API_KEY or not SUPABASE_KEY:
-    st.error("❌ 金鑰讀取失敗")
+    st.error("❌ Secrets 金鑰缺失，請檢查設定。")
     st.stop()
 
 genai.configure(api_key=GEMINI_API_KEY)
@@ -21,42 +21,63 @@ def init_connection():
 
 supabase: Client = init_connection()
 
-# ====================== 2. 頁面佈局 ======================
-st.set_page_config(page_title="植物地圖", layout="centered", page_icon="🌿")
+# ====================== 2. 介面中文化與樣式黑科技 ======================
+st.set_page_config(page_title="植物發現地圖", layout="centered", page_icon="🌿")
+
+# 這一咒語強制將鏡頭開啟後的 "Take Photo" 換成中文
+st.markdown(
+    """
+    <style>
+    div[data-testid="stCameraInputButton"] button p {
+        display: none !important;
+    }
+    div[data-testid="stCameraInputButton"] button::after {
+        content: "📸 點擊拍照辨識";
+        font-weight: bold;
+    }
+    /* 優化紀錄列表外框 */
+    .record-card {
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #eee;
+        margin-bottom: 10px;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 st.title("🌿 全民植物發現地圖")
 
-# ====================== 3. 拍照/上傳區 (修正重點) ======================
+# ====================== 3. 照片輸入區 ======================
 img_file = None
+tab_cam, tab_file = st.tabs(["📸 啟動相機", "📁 從相簿上傳"])
 
-# 使用 Tabs 讓介面更乾淨，手機上按鈕會更明顯
-tab1, tab2 = st.tabs(["📸 直接拍照", "📁 上傳照片"])
-
-with tab1:
-    # 這裡就是你說的按鍵名稱與標籤
-    cam_in = st.camera_input("請將鏡頭對準植物")
+with tab_cam:
+    cam_in = st.camera_input("拍照後 AI 會自動辨識")
     if cam_in:
         img_file = cam_in
 
-with tab2:
-    file_in = st.file_uploader("選擇手機相簿中的照片", type=["png", "jpg", "jpeg"])
+with tab_file:
+    file_in = st.file_uploader("選擇植物照片", type=["jpg", "jpeg", "png"])
     if file_in and not img_file:
         img_file = file_in
 
-# ====================== 4. 主要邏輯 ======================
+# ====================== 4. AI 辨識與上傳邏輯 ======================
 if img_file is not None:
-    st.image(img_file, width=300)
-
-    # 產生唯一的 Image ID (防止重複辨識)
+    st.image(img_file, width=350, caption="準備辨識的照片")
+    
+    # 建立唯一 ID 防止重複觸發
     img_id = f"{img_file.name}_{img_file.size}"
     
     if "ai_cache" not in st.session_state or st.session_state.get("last_img_id") != img_id:
-        with st.spinner("🤖 AI 正在辨識植物..."):
+        with st.spinner("🤖 AI 正在努力辨識植物..."):
             try:
-                # 使用你指定的 2.5 (或環境中唯一的可用模型)
+                # 請確認模型名稱是否為你環境中可用的 (如 2.0-flash 或 2.5 系列)
                 model = genai.GenerativeModel('gemini-2.0-flash-lite-preview-02-05') 
                 
-                prompt = "請辨識此植物。格式：\n中文名稱：xxx\n學名：xxx\n科別：xxx\n簡介：xxx（50字內）"
-
+                prompt = "請詳細辨識此植物。格式：\n中文名稱：xxx\n學名：xxx\n科別：xxx\n簡介：xxx（50字內）"
+                
                 response = model.generate_content([
                     prompt,
                     {"mime_type": "image/jpeg", "data": img_file.getvalue()}
@@ -64,11 +85,11 @@ if img_file is not None:
                 st.session_state.ai_cache = response.text
                 st.session_state.last_img_id = img_id
             except Exception as e:
-                st.error(f"辨識失敗：{e}")
+                st.error(f"辨識出錯：{e}")
                 st.session_state.ai_cache = "辨識失敗"
 
     ai_result = st.session_state.ai_cache
-    st.info(f"💡 辨識結果：\n{ai_result}")
+    st.info(f"💡 AI 辨識建議：\n{ai_result}")
 
     # 解析中文名稱
     default_name = ""
@@ -76,22 +97,20 @@ if img_file is not None:
         try:
             default_name = ai_result.split("中文名稱：")[1].split("\n")[0].strip()
         except:
-            default_name = "未命名植物"
+            default_name = ""
 
-    # 使用者確認名稱
-    plant_name = st.text_input("確認植物名稱", value=default_name)
+    plant_name = st.text_input("確認或修改名稱", value=default_name)
 
-    # 上傳按鈕
-    if st.button("🚀 確認並發布到地圖", type="primary", use_container_width=True):
+    if st.button("🚀 確認並上傳到地圖", type="primary", use_container_width=True):
         if not plant_name.strip():
-            st.warning("請輸入名稱！")
+            st.warning("請填寫植物名稱！")
         else:
             try:
-                with st.spinner("儲存中..."):
+                with st.spinner("正在上傳資料..."):
                     ts = int(time.time())
                     file_path = f"public/plant_{ts}.jpg"
-
-                    # 上傳到 Storage
+                    
+                    # 1. 上傳 Storage
                     supabase.storage.from_("plant-images").upload(
                         path=file_path,
                         file=img_file.getvalue(),
@@ -99,7 +118,7 @@ if img_file is not None:
                     )
                     img_url = supabase.storage.from_("plant-images").get_public_url(file_path)
 
-                    # 寫入資料庫
+                    # 2. 寫入資料庫 (已移除 ID 欄位)
                     data = {
                         "name": plant_name.strip(),
                         "image_url": img_url,
@@ -110,20 +129,39 @@ if img_file is not None:
                     supabase.table("plants").insert(data).execute()
 
                     st.balloons()
-                    st.success("🎉 已成功標記到地圖！")
-                    time.sleep(1)
-                    st.rerun() 
+                    st.success(f"🎉 成功！「{plant_name}」已加入地圖。")
+                    time.sleep(1.5)
+                    st.rerun()
             except Exception as e:
-                st.error(f"上傳出錯：{e}")
+                st.error(f"上傳失敗：{e}")
 
-# ====================== 5. 地圖顯示 ======================
+# ====================== 5. 地圖與歷史紀錄展示 ======================
 st.divider()
+
 try:
+    # 讀取所有資料
     res = supabase.table("plants").select("*").order("created_at", desc=True).execute()
-    if res.data:
+    all_plants = res.data
+
+    if all_plants:
         st.subheader("🌍 植物分佈地圖")
-        df = pd.DataFrame(res.data)
-        df_map = df.rename(columns={"latitude": "lat", "longitude": "lon"})
-        st.map(df_map)
-except:
-    pass
+        map_df = pd.DataFrame(all_plants)
+        map_df = map_df.rename(columns={"latitude": "lat", "longitude": "lon"})
+        st.map(map_df)
+
+        st.subheader("📍 最近發現紀錄")
+        for p in all_plants[:10]: # 顯示最近 10 筆
+            with st.container():
+                col_img, col_txt = st.columns([1, 2])
+                with col_img:
+                    st.image(p['image_url'], use_container_width=True)
+                with col_txt:
+                    st.markdown(f"### {p['name']}")
+                    st.caption(f"📅 {p.get('created_at', '')[:16].replace('T', ' ')}")
+                    with st.expander("查看辨識詳情"):
+                        st.write(p.get('ai_result', '無詳細資料'))
+                st.divider()
+    else:
+        st.info("地圖目前還沒有紀錄，快來當第一個貢獻者！")
+except Exception as e:
+    st.write("資料同步中...")
