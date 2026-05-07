@@ -22,30 +22,52 @@ def init_connection():
 
 supabase: Client = init_connection()
 
-# ====================== 2. 頁面佈局 ======================
+# ====================== 2. 頁面佈局與中文化 CSS ======================
 st.set_page_config(page_title="植物發現地圖", layout="centered", page_icon="🌿")
+
+# 透過 CSS 強制將相機按鈕文字改為中文
+st.markdown("""
+    <style>
+    /* 將 Take Photo 按鈕文字取代為「點擊拍照」 */
+    button[data-testid="stCameraInputButton"] {
+        font-size: 0px !important;
+    }
+    button[data-testid="stCameraInputButton"]::after {
+        content: "📸 點此拍照";
+        font-size: 16px !important;
+    }
+    /* 將 Clear photo 改為「清除照片」 */
+    button[aria-label="Clear photo"] {
+        font-size: 0px !important;
+    }
+    button[aria-label="Clear photo"]::after {
+        content: "🔄 重拍一次";
+        font-size: 16px !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 st.title("🌿 全民植物發現地圖")
 st.write("拍照或上傳植物，AI 幫你辨識並標記在地圖上！")
 
 # ====================== 3. 照片輸入區 ======================
 col1, col2 = st.columns(2)
 with col1:
-    cam_in = st.camera_input("📸 拍照辨識")
+    # 這裡的標籤雖然寫中文，但 Streamlit 內部的按鈕預設是英文，已透過上方 CSS 修正
+    cam_in = st.camera_input("拍照辨識")
 with col2:
     file_in = st.file_uploader("📁 上傳相片", type=["png", "jpg", "jpeg"])
 
-# 優先使用相機拍攝的照片，若無則使用上傳的照片
 img_file = cam_in if cam_in is not None else file_in
 
 # ====================== 4. 主要邏輯 ======================
 if img_file is not None:
     st.image(img_file, width=300, caption="已讀取照片")
 
-    # A. AI 辨識 (使用你指定的 2.5 版本模型)
+    # A. AI 辨識 (使用 2.5 版本)
     if "ai_cache" not in st.session_state or st.session_state.get("last_img") != img_file.name:
         with st.spinner("🤖 AI 正在辨識中..."):
             try:
-                # 修正：強制指定為 2.5 版本
                 model = genai.GenerativeModel('gemini-2.5-flash-lite')
                 
                 prompt = """請詳細辨識這張照片中的植物。回覆格式：
@@ -77,7 +99,7 @@ if img_file is not None:
 
     plant_name = st.text_input("確認或修改植物名稱", value=default_name)
 
-    # C. 確認上傳按鈕 (縮排檢查)
+    # C. 確認上傳按鈕
     if st.button("🚀 確認並發布到地圖", type="primary"):
         if not plant_name:
             st.warning("請填寫植物名稱！")
@@ -85,9 +107,9 @@ if img_file is not None:
             try:
                 with st.spinner("正在上傳至雲端儲存空間..."):
                     ts = int(time.time())
+                    # 統一將手機拍照的檔名設為 jpg
                     file_path = f"public/plant_{ts}.jpg"
 
-                    # 上傳照片
                     img_bytes = img_file.getvalue()
                     supabase.storage.from_("plant-images").upload(
                         path=file_path,
@@ -96,7 +118,7 @@ if img_file is not None:
                     )
                     img_url = supabase.storage.from_("plant-images").get_public_url(file_path)
 
-                    # 寫入資料庫 (移除手動 ID，交給資料庫自動生成)
+                    # 寫入資料庫
                     data = {
                         "name": plant_name,
                         "image_url": img_url,
@@ -140,4 +162,4 @@ try:
     else:
         st.info("目前地圖上還沒有資料。")
 except Exception as e:
-    st.write("資料同步中...")
+    st.write("資料載入中...")
