@@ -21,11 +21,13 @@ picture = st.file_uploader("拍下照片或從相簿上傳", type=["jpg", "png",
 
 if picture:
     st.image(picture, caption="已選取的照片")
-
-if img_file:
+    
+    # --- 注意這裡：把原本的 img_file 改成 picture ---
     plant_name = st.text_input("這株植物叫什麼名字？", "未知植物")
     
     if st.button("上傳發現紀錄"):
+        # 這裡放你上傳到 Supabase 的後續程式碼...
+        st.write(f"準備上傳：{plant_name}")
         # A. 上傳圖片到 Supabase Storage
         file_path = f"public/{img_file.name}"
         response = supabase.storage.from_("plant-images").upload(file_path, img_file.getvalue())
