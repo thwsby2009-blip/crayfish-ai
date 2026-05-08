@@ -36,7 +36,7 @@ st.markdown(
     display: block !important;
     font-weight: bold;
 }
-    }
+    
     /* 優化紀錄列表外框 */
     .record-card {
         padding: 15px;
