@@ -73,7 +73,7 @@ if uploaded_file is not None:
 
             # --- C. 使用 Gemini AI 辨識 ---
             status.write("🧠 AI 正在分析植物特徵...")
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel('gemini-2.5-flash-lite')
             # 使用壓縮後的圖片進行辨識
             img_for_ai = Image.open(io.BytesIO(compressed_bytes))
             
