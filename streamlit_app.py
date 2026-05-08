@@ -28,21 +28,23 @@ st.set_page_config(page_title="植物發現地圖", layout="centered", page_icon
 st.markdown(
     """
     <style>
-    div[data-testid="stCameraInputButton"] button p {
+    /* 1. 隱藏原始文字 (針對所有可能的層級) */
+    [data-testid="stCameraInputButton"] button p {
+        font-size: 0 !important;
         display: none !important;
     }
-    div[data-testid="stCameraInputButton"] button::after {
-    content: "📸 點擊拍照辨識" !important;
-    display: block !important;
-    font-weight: bold;
-}
-    
-    /* 優化紀錄列表外框 */
-    .record-card {
-        padding: 15px;
-        border-radius: 10px;
-        border: 1px solid #eee;
-        margin-bottom: 10px;
+
+    /* 2. 強制注入中文文字 */
+    [data-testid="stCameraInputButton"] button::before {
+        content: "📸 點擊拍照辨識" !important;
+        font-size: 1rem !important;
+        visibility: visible !important;
+        font-weight: bold !important;
+    }
+
+    /* 3. 修正按鈕高度，確保文字不會被切掉 */
+    [data-testid="stCameraInputButton"] button {
+        min-height: 2.5rem !important;
     }
     </style>
     """,
