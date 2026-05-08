@@ -7,7 +7,7 @@ import pandas as pd
 # ====================== 1. 核心設定 ======================
 SUPABASE_URL = "https://sxhhphxdkqxkjveqkwtc.supabase.co"
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY")
-GEMINI_API_KEY=***
+GEMINI_API_KEY = st.secrets.get("GEMINI_KEY")
 
 if not GEMINI_API_KEY or not SUPABASE_KEY:
     st.error("❌ Secrets 金鑰缺失，請檢查設定。")
