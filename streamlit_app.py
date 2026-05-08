@@ -144,6 +144,8 @@ if img_file is not None:
                 ])
                 st.session_state.ai_cache = response.text
                 st.session_state.last_img_id = img_id
+                # 換新圖片時，重置上傳狀態
+                st.session_state.upload_done = False 
             except Exception as e:
                 st.error(f"辨識出錯：{e}")
                 st.session_state.ai_cache = "辨識失敗"
@@ -151,28 +153,33 @@ if img_file is not None:
     ai_result = st.session_state.ai_cache
     st.info(f"💡 AI 辨識建議：\n{ai_result}")
 
-    default_name = ""
-    if "中文名稱：" in ai_result:
-        try:
-            default_name = ai_result.split("中文名稱：")[1].split("\n")[0].strip()
-        except:
-            default_name = ""
+    plant_name = st.text_input("確認或修改名稱", value=default_name if 'default_name' in locals() else "")
 
-    plant_name = st.text_input("確認或修改名稱", value=default_name)
+    # --- 💡 改良重點：上傳狀態鎖定 ---
+    if "upload_done" not in st.session_state:
+        st.session_state.upload_done = False
 
-    if st.button("🚀 確認並上傳到地圖", type="primary", use_container_width=True):
+    # 根據狀態決定按鈕文字與是否反灰
+    btn_label = "✅ 已成功上傳" if st.session_state.upload_done else "🚀 確認並上傳到地圖"
+    
+    if st.button(
+        btn_label, 
+        type="primary", 
+        use_container_width=True, 
+        disabled=st.session_state.upload_done # 如果上傳成功，按鈕直接反灰
+    ):
         if not plant_name.strip():
             st.warning("請填寫植物名稱！")
         else:
             try:
-                with st.spinner("正在壓縮並上傳資料..."):
-                    # --- 👈 執行圖片壓縮 ---
+                with st.spinner("正在壓縮並上傳中..."):
+                    # 1. 壓縮圖片
                     final_img_data = compress_image(img_file)
                     
                     ts = int(time.time())
                     file_path = f"public/plant_{ts}.jpg"
                     
-                    # 1. 上傳 Storage (改用 final_img_data)
+                    # 2. 上傳 Storage
                     supabase.storage.from_("plant-images").upload(
                         path=file_path,
                         file=final_img_data,
@@ -180,7 +187,7 @@ if img_file is not None:
                     )
                     img_url = supabase.storage.from_("plant-images").get_public_url(file_path)
 
-                    # 2. 寫入資料庫
+                    # 3. 寫入資料庫
                     data = {
                         "name": plant_name.strip(),
                         "image_url": img_url,
@@ -191,10 +198,13 @@ if img_file is not None:
                     }
                     supabase.table("plants").insert(data).execute()
 
+                    # ✨ 設定為已完成
+                    st.session_state.upload_done = True
                     st.balloons()
-                    st.success("🎉 成功！壓縮後的檔案已加入地圖。")
+                    st.success("🎉 上傳成功！按鈕已鎖定以防重複上傳。")
+                    
                     time.sleep(1.5)
-                    st.rerun()
+                    st.rerun() # 重新整理頁面以更新下方的地圖與紀錄
             except Exception as e:
                 st.error(f"上傳失敗：{e}")
 # ====================== 6. 地圖與歷史紀錄展示 ======================
