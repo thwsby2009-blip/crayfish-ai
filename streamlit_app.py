@@ -3,9 +3,15 @@ from supabase import create_client, Client
 import google.generativeai as genai
 import time
 import pandas as pd
-
+import uuid
 # 這裡修正了：從套件中匯入函數
 from streamlit_js_eval import streamlit_js_eval, get_geolocation
+
+# 產生或獲取當前使用者的唯一 ID (存在瀏覽器中，重新整理不會消失，但關掉分頁可能會變)
+if 'user_id' not in st.session_state:
+    st.session_state['user_id'] = str(uuid.uuid4())
+
+my_id = st.session_state['user_id']
 
 # ====================== 1. 核心設定 ======================
 UPABASE_URL = "https://sxhhphxdkqxkjveqkwtc.supabase.co"
