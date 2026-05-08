@@ -9,16 +9,17 @@ from PIL import Image
 import io
 
 # ====================== 1. 初始化與金鑰設定 ======================
-SUPABASE_URL = "https://sxhhphxdkqxkjveqkwtc.supabase.co" 
-SUPABASE_KEY = st.secrets.get("SUPABASE_KEY") 
-GEMINI_API_KEY = st.secrets.get("GEMINI_KEY") 
-if not GEMINI_API_KEY or not SUPABASE_KEY: 
-    st.error("❌ Secrets 金鑰缺失，請檢查設定。") 
-    st.stop() genai.configure(api_key=GEMINI_API_KEY) 
-    @st.cache_resource 
-    def init_connection(): 
-        return create_client(SUPABASE_URL, SUPABASE_KEY) 
-        supabase: Client = init_connection()
+SUPABASE_URL = "https://sxhhphxdkqxkjveqkwtc.supabase.co"
+SUPABASE_KEY = st.secrets.get("SUPABASE_KEY")
+GEMINI_KEY = st.secrets.get("GEMINI_KEY")
+
+genai.configure(api_key=GEMINI_KEY)
+
+@st.cache_resource
+def init_supabase():
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
+
+supabase: Client = init_supabase()
 
 # 設備身分識別 (User ID) - 確保每台手機有獨立 ID
 if 'my_id' not in st.session_state:
