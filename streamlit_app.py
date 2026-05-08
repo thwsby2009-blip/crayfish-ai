@@ -32,8 +32,10 @@ st.markdown(
         display: none !important;
     }
     div[data-testid="stCameraInputButton"] button::after {
-        content: "📸 點擊拍照辨識";
-        font-weight: bold;
+    content: "📸 點擊拍照辨識" !important;
+    display: block !important;
+    font-weight: bold;
+}
     }
     /* 優化紀錄列表外框 */
     .record-card {
