@@ -133,10 +133,10 @@ if img_file is not None:
     img_id = f"{img_file.name}_{img_file.size}"
     
     if "ai_cache" not in st.session_state or st.session_state.get("last_img_id") != img_id:
-        with st.spinner("🤖 Gemini 2.5 正在努力辨識植物..."):
+        with st.spinner("🤖 Gemini 2.5 正在辨識植物..."):
             try:
                 model = genai.GenerativeModel('gemini-2.5-flash') 
-                prompt = "請詳細辨識此植物。格式：\n中文名稱：xxx\n學名：xxx\n科別：xxx\n簡介：xxx（50字內）"
+                prompt = "請詳細辨識此植物。格式：\n中文名稱：xxx\n學名：xxx\n科別：xxx\n簡介：xxx"
                 
                 response = model.generate_content([
                     prompt,
@@ -144,42 +144,48 @@ if img_file is not None:
                 ])
                 st.session_state.ai_cache = response.text
                 st.session_state.last_img_id = img_id
-                # 換新圖片時，重置上傳狀態
-                st.session_state.upload_done = False 
+                st.session_state.upload_done = False # 換新圖，重置上傳鎖
             except Exception as e:
                 st.error(f"辨識出錯：{e}")
                 st.session_state.ai_cache = "辨識失敗"
 
     ai_result = st.session_state.ai_cache
-    st.info(f"💡 AI 辨識建議：\n{ai_result}")
+    st.info(f"💡 AI 辨識結果：\n{ai_result}")
 
-    plant_name = st.text_input("確認或修改名稱", value=default_name if 'default_name' in locals() else "")
+    # --- 💡 改良點：自動解析 AI 結果作為預設名稱 ---
+    parsed_name = ""
+    if "中文名稱：" in ai_result:
+        try:
+            parsed_name = ai_result.split("中文名稱：")[1].split("\n")[0].strip().replace("*", "")
+        except:
+            parsed_name = "未知植物"
+    
+    # 使用者可以直接看 AI 給的名字，不滿意再改，滿意就直接下移到按鈕
+    plant_name = st.text_input("確認植物名稱（AI 已自動填入，可修改）", value=parsed_name)
 
-    # --- 💡 改良重點：上傳狀態鎖定 ---
+    # --- 上傳狀態鎖定 ---
     if "upload_done" not in st.session_state:
         st.session_state.upload_done = False
 
-    # 根據狀態決定按鈕文字與是否反灰
     btn_label = "✅ 已成功上傳" if st.session_state.upload_done else "🚀 確認並上傳到地圖"
     
     if st.button(
         btn_label, 
         type="primary", 
         use_container_width=True, 
-        disabled=st.session_state.upload_done # 如果上傳成功，按鈕直接反灰
+        disabled=st.session_state.upload_done
     ):
         if not plant_name.strip():
-            st.warning("請填寫植物名稱！")
+            st.warning("名稱不能為空！")
         else:
             try:
-                with st.spinner("正在壓縮並上傳中..."):
-                    # 1. 壓縮圖片
+                with st.spinner("正在處理中..."):
                     final_img_data = compress_image(img_file)
                     
                     ts = int(time.time())
                     file_path = f"public/plant_{ts}.jpg"
                     
-                    # 2. 上傳 Storage
+                    # 1. 上傳 Storage
                     supabase.storage.from_("plant-images").upload(
                         path=file_path,
                         file=final_img_data,
@@ -187,7 +193,7 @@ if img_file is not None:
                     )
                     img_url = supabase.storage.from_("plant-images").get_public_url(file_path)
 
-                    # 3. 寫入資料庫
+                    # 2. 寫入資料庫
                     data = {
                         "name": plant_name.strip(),
                         "image_url": img_url,
@@ -198,13 +204,11 @@ if img_file is not None:
                     }
                     supabase.table("plants").insert(data).execute()
 
-                    # ✨ 設定為已完成
                     st.session_state.upload_done = True
                     st.balloons()
-                    st.success("🎉 上傳成功！按鈕已鎖定以防重複上傳。")
-                    
-                    time.sleep(1.5)
-                    st.rerun() # 重新整理頁面以更新下方的地圖與紀錄
+                    st.success("🎉 上傳成功！")
+                    time.sleep(1.2)
+                    st.rerun()
             except Exception as e:
                 st.error(f"上傳失敗：{e}")
 # ====================== 6. 地圖與歷史紀錄展示 ======================
