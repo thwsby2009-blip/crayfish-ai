@@ -170,44 +170,59 @@ if img_file is not None:
 st.divider()
 
 try:
-    # 讀取所有資料
+    # 從資料庫抓取最新資料
     res = supabase.table("plants").select("*").order("created_at", desc=True).execute()
     all_plants = res.data
 
     if all_plants:
         st.subheader("🌍 植物分佈地圖")
+        # 準備地圖資料
         map_df = pd.DataFrame(all_plants)
-        map_df = map_df.rename(columns={"latitude": "lat", "longitude": "lon"})
-        st.map(map_df)
+        if not map_df.empty:
+            map_df = map_df.rename(columns={"latitude": "lat", "longitude": "lon"})
+            st.map(map_df)
 
         st.subheader("📍 最近發現紀錄")
-        for p in all_plants[:10]: # 顯示最近 10 筆
+        
+        # 顯示最近的 10 筆紀錄
+        for p in all_plants[:10]:
             with st.container():
                 col_img, col_txt = st.columns([1, 2])
+                
                 with col_img:
                     st.image(p['image_url'], use_container_width=True)
+                
                 with col_txt:
                     st.markdown(f"### {p['name']}")
                     st.caption(f"📅 {p.get('created_at', '')[:16].replace('T', ' ')}")
                     
-                    # 詳情與刪除按鈕
+                    # 詳情摺疊區
                     with st.expander("查看辨識詳情"):
                         st.write(p.get('ai_result', '無詳細資料'))
                     
-                    # 刪除功能 (用唯一名稱當 key)
-                    if st.button(f"🗑️ 刪除此紀錄", key=f"del_{p.get('id', p['created_at'])}"):
-                        try:
-                            # 1. 從資料庫刪除 (用 created_at 比對)
-                            supabase.table("plants").delete().eq("created_at", p['created_at']).execute()
-                            st.success("✅ 刪除成功！")
-                            time.sleep(1)
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"刪除失敗：{e}")
+                    # --- 刪除權限檢查區 ---
+                    # 檢查這張圖的 user_id 是否等於現在這台手機/瀏覽器的 my_id
+                    if p.get('user_id') == my_id:
+                        # 使用 id 進行刪除最精準，key 加上 id 避免按鈕衝突
+                        if st.button(f"🗑️ 刪除我的紀錄", key=f"del_{p.get('id', p['created_at'])}"):
+                            # 執行刪除動作
+                            delete_res = supabase.table("plants").delete().eq("id", p['id']).execute()
+                            
+                            # 檢查是否真的有刪到東西
+                            if delete_res.data:
+                                st.success("✅ 紀錄已成功刪除！")
+                                time.sleep(1)
+                                st.rerun() # 強制重新整理畫面
+                            else:
+                                st.error("❌ 刪除失敗，請檢查資料庫狀態。")
+                    else:
+                        st.caption("🔒 唯讀紀錄 (非本人上傳)")
+                
                 st.divider()
     else:
-        st.info("地圖目前還沒有紀錄，快來當第一個貢獻者！")
+        st.info("地圖上還沒有植物紀錄，快去拍第一張吧！")
+
 except Exception as e:
-    st.write("資料同步中...")
+    st.error(f"讀取紀錄時發生錯誤：{e}")
 except Exception as e:
     st.write("資料同步中...")
