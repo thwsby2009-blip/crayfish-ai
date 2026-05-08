@@ -7,7 +7,7 @@ import pandas as pd
 # ====================== 1. 核心設定 ======================
 SUPABASE_URL = "https://sxhhphxdkqxkjveqkwtc.supabase.co"
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY")
-GEMINI_API_KEY = st.secrets.get("GEMINI_KEY")
+GEMINI_API_KEY=***
 
 if not GEMINI_API_KEY or not SUPABASE_KEY:
     st.error("❌ Secrets 金鑰缺失，請檢查設定。")
@@ -27,13 +27,13 @@ st.set_page_config(page_title="植物發現地圖", layout="centered", page_icon
 st.markdown(
     """
     <style>
-    /* 1. 隱藏 Tab 裡面相機按鈕原本的英文 */
-    div[data-testid="stCameraInputButton"] button p {
+    /* 1. 隱藏相機按鈕原本的英文文字 */
+    div[data-testid="stCameraInput"] button:first-child p {
         display: none !important;
     }
 
-    /* 2. 在按鈕正中心注入中文，並確保它在最前面 */
-    div[data-testid="stCameraInputButton"] button::before {
+    /* 2. 在按鈕正中心注入中文 */
+    div[data-testid="stCameraInput"] button:first-child::before {
         content: "📸 點擊拍照辨識" !important;
         visibility: visible !important;
         font-weight: bold !important;
@@ -43,7 +43,7 @@ st.markdown(
     }
     
     /* 3. 確保按鈕寬度自動適應 */
-    div[data-testid="stCameraInputButton"] button {
+    div[data-testid="stCameraInput"] button {
         min-height: 3rem !important;
     }
     </style>
@@ -77,7 +77,6 @@ if img_file is not None:
     if "ai_cache" not in st.session_state or st.session_state.get("last_img_id") != img_id:
         with st.spinner("🤖 AI 正在努力辨識植物..."):
             try:
-                # 請確認模型名稱是否為你環境中可用的 (如 2.0-flash 或 2.5 系列)
                 model = genai.GenerativeModel('gemini-2.0-flash-lite-preview-02-05') 
                 
                 prompt = "請詳細辨識此植物。格式：\n中文名稱：xxx\n學名：xxx\n科別：xxx\n簡介：xxx（50字內）"
@@ -143,7 +142,6 @@ if img_file is not None:
 st.divider()
 
 try:
-    # 讀取所有資料
     res = supabase.table("plants").select("*").order("created_at", desc=True).execute()
     all_plants = res.data
 
@@ -154,7 +152,7 @@ try:
         st.map(map_df)
 
         st.subheader("📍 最近發現紀錄")
-        for p in all_plants[:10]: # 顯示最近 10 筆
+        for p in all_plants[:10]:
             with st.container():
                 col_img, col_txt = st.columns([1, 2])
                 with col_img:
