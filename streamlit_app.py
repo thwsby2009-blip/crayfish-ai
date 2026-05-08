@@ -8,7 +8,7 @@ from streamlit_js_eval import streamlit_js_eval, get_geolocation
 from PIL import Image
 import io
 
-# ====================== 1. 初始化與金鑰設定 (保持你的原樣) ======================
+# ====================== 1. 初始化與金鑰設定 ======================
 SUPABASE_URL = "https://sxhhphxdkqxkjveqkwtc.supabase.co" 
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY") 
 GEMINI_API_KEY = st.secrets.get("GEMINI_KEY") 
@@ -30,71 +30,91 @@ if 'my_id' not in st.session_state:
     st.session_state.my_id = str(uuid.uuid4())
 my_id = st.session_state.my_id
 
-# ====================== 2. 獲取地理位置 (GPS 核心) ======================
+# ====================== 2. 標題與 GPS 座標顯示 ======================
+st.title("🌿 全台植物地圖 AI 辨識")
+
+# 獲取地理位置
 loc = get_geolocation()
 if loc:
     curr_lat = loc['coords']['latitude']
     curr_lon = loc['coords']['longitude']
-    st.success(f"📍 GPS 定位成功: {curr_lat:.4f}, {curr_lon:.4f}")
+    # 放在標題下方的座標顯示
+    st.markdown(f"📍 **當前座標**：`{curr_lat:.6f}, {curr_lon:.6f}`")
 else:
     curr_lat, curr_lon = 25.0330, 121.5654
-    st.warning("⚠️ 無法取得精確位置，將使用預設座標")
+    st.caption("📍 正在獲取 GPS 座標中... (或請開啟定位權限)")
+
+st.caption(f"設備 ID: {my_id[:8]}")
 
 # ====================== 3. 圖片輸入 (相機 + 手動上傳) ======================
-st.title("🌿 全台植物地圖 AI 辨識")
+st.divider()
+source = st.radio("選擇圖片來源：", ["使用相機拍照", "從相簿選取檔案"], horizontal=True)
 
-# 提供兩種方式：相機拍照 或 檔案上傳
-source = st.radio("選擇圖片來源：", ["使用相機", "上傳圖片檔案"])
-if source == "使用相機":
+if source == "使用相機拍照":
     uploaded_file = st.camera_input("拍照辨識植物")
 else:
     uploaded_file = st.file_uploader("請選擇圖片檔案", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    with st.status("🚀 辨識處理中...", expanded=True):
-        # --- A. 壓縮圖片 ---
-        img = Image.open(uploaded_file)
-        img.thumbnail((1024, 1024), Image.LANCZOS)
-        img_buffer = io.BytesIO()
-        img.convert("RGB").save(img_buffer, format='JPEG', quality=70)
-        compressed_bytes = img_buffer.getvalue()
-        
-        # --- B. 上傳至 Storage ---
-        file_name = f"{int(time.time())}.jpg"
-        supabase.storage.from_("plant_images").upload(file_name, compressed_bytes, {"content-type": "image/jpeg"})
-        img_url = supabase.storage.from_("plant_images").get_public_url(file_name)
+    with st.status("🚀 AI 辨識中...", expanded=True) as status:
+        try:
+            # --- A. 圖片壓縮 (節省 Storage 空間) ---
+            status.write("🖼️ 優化圖片檔案大小...")
+            img = Image.open(uploaded_file)
+            img.thumbnail((1024, 1024), Image.LANCZOS)
+            
+            img_buffer = io.BytesIO()
+            img.convert("RGB").save(img_buffer, format='JPEG', quality=70)
+            compressed_bytes = img_buffer.getvalue()
+            
+            # --- B. 上傳至 Supabase Storage ---
+            status.write("☁️ 儲存圖片至雲端...")
+            file_name = f"{int(time.time())}_{uuid.uuid4().hex[:4]}.jpg"
+            supabase.storage.from_("plant_images").upload(
+                file_name, compressed_bytes, {"content-type": "image/jpeg"}
+            )
+            img_url = supabase.storage.from_("plant_images").get_public_url(file_name)
 
-        # --- C. 辨識 (絕對使用 gemini-2.5-flash-lite) ---
-        model = genai.GenerativeModel('gemini-2.5-flash-lite')
-        # 給 AI 辨識也用壓縮後的圖，速度最快
-        response = model.generate_content([
-            "你是一個植物學家。請辨識這張圖片中的植物名稱，並簡單說明其特徵與照顧方式。", 
-            Image.open(io.BytesIO(compressed_bytes))
-        ])
-        ai_result = response.text
-        plant_name = ai_result.split('\n')[0].replace('#', '').strip()
+            # --- C. AI 辨識 (使用 2.5-flash-lite) ---
+            status.write("🧠 使用 Gemini 2.5-flash-lite 分析...")
+            model = genai.GenerativeModel('gemini-2.5-flash-lite')
+            
+            response = model.generate_content([
+                "你是一個植物學家。請辨識這張圖片中的植物名稱，並簡單說明其特徵與照顧方式。", 
+                Image.open(io.BytesIO(compressed_bytes))
+            ])
+            ai_result = response.text
+            plant_name = ai_result.split('\n')[0].replace('#', '').strip()
 
-        # --- D. 存入資料庫 ---
-        supabase.table("plants").insert({
-            "name": plant_name, "image_url": img_url,
-            "latitude": curr_lat, "longitude": curr_lon,
-            "ai_result": ai_result, "user_id": my_id
-        }).execute()
-        
-        st.success("✅ 辨識完成並已儲存！")
-        time.sleep(1)
-        st.rerun()
+            # --- D. 寫入 Database ---
+            status.write("💾 記錄地理位置與辨識結果...")
+            supabase.table("plants").insert({
+                "name": plant_name,
+                "image_url": img_url,
+                "latitude": curr_lat,
+                "longitude": curr_lon,
+                "ai_result": ai_result,
+                "user_id": my_id
+            }).execute()
+            
+            status.update(label="✅ 紀錄成功！", state="complete")
+            st.success(f"發現植物：{plant_name}")
+            time.sleep(1)
+            st.rerun()
+            
+        except Exception as e:
+            st.error(f"❌ 處理失敗: {e}")
 
-# ====================== 4. 地圖與紀錄管理 (含刪除) ======================
+# ====================== 4. 地圖與歷史紀錄展示 ======================
 st.divider()
 try:
     res = supabase.table("plants").select("*").order("created_at", desc=True).execute()
     if res.data:
-        st.subheader("🌍 植物分佈地圖")
+        st.subheader("🌍 全台發現地圖")
         map_df = pd.DataFrame(res.data)
         st.map(map_df.rename(columns={"latitude": "lat", "longitude": "lon"}))
 
-        st.subheader("📍 歷史紀錄")
+        st.subheader("📍 最近辨識紀錄")
         for p in res.data:
             with st.container():
                 col1, col2 = st.columns([1, 2])
@@ -102,15 +122,15 @@ try:
                     st.image(p['image_url'], use_container_width=True)
                 with col2:
                     st.markdown(f"### {p['name']}")
-                    st.caption(f"📅 {p.get('created_at', '')[:10]}")
-                    with st.expander("查看 AI 詳細報告"):
+                    st.caption(f"📅 {p.get('created_at', '')[:10]} | 📍 {p.get('latitude', 0):.4f}, {p.get('longitude', 0):.4f}")
+                    with st.expander("查看 AI 辨識詳細內容"):
                         st.write(p['ai_result'])
                     
-                    # 本人刪除按鈕
+                    # 只有本人可以刪除
                     if str(p.get('user_id')) == str(my_id):
                         if st.button("🗑️ 刪除", key=f"del_{p.get('id')}"):
                             supabase.table("plants").delete().eq("id", p['id']).execute()
                             st.rerun()
                 st.divider()
-except Exception as e:
-    st.info("目前地圖尚無資料")
+except Exception:
+    st.info("地圖目前尚無植物紀錄")
