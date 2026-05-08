@@ -55,16 +55,25 @@ st.markdown(
 
 st.title("🌿 全民植物發現地圖")
 
-# ====================== 獲取即時 GPS ======================
-# 這行會讓瀏覽器跳出詢問視窗
-location = get_geolocation()
+# ====================== 恢復昨天的定位功能 ======================
+st.subheader("📍 所在位置確認")
 
-if location:
-    curr_lat = location['coords']['latitude']
-    curr_lon = location['coords']['longitude']
+# 這裡呼叫昨天那個會動的工具
+loc = get_geolocation()
+
+if loc:
+    curr_lat = loc['coords']['latitude']
+    curr_lon = loc['coords']['longitude']
+    st.success(f"✅ 定位成功：{curr_lat:.4f}, {curr_lon:.4f}")
 else:
-    # 預設值（台北101），確保沒抓到時不會出錯
     curr_lat, curr_lon = 25.0330, 121.5654
+    st.info("🛰️ 正在搜尋 GPS 訊號... (請確保手機已開啟定位並允許瀏覽器存取)")
+    # 增加一個手動觸發按鈕，這是昨天維持穩定的關鍵
+    if st.button("🔄 重新整理 GPS 座標"):
+        st.rerun()
+
+# 這裡可以加一個小地圖預覽目前位置，讓你確認它不是在 101
+st.write(f"目前紀錄座標: {curr_lat}, {curr_lon}")
 # ====================== 3. 照片輸入區 ======================
 img_file = None
 tab_cam, tab_file = st.tabs(["📸 啟動相機", "📁 從相簿上傳"])
