@@ -3,6 +3,7 @@ from supabase import create_client, Client
 import time
 import google.generativeai as genai
 import pandas as pd
+from streamlit_js_eval import get_geolocation  # 新增：獲取 GPS 的工具
 
 # ====================== 1. 核心設定 ======================
 SUPABASE_URL = "https://sxhhphxdkqxkjveqkwtc.supabase.co"
@@ -21,18 +22,29 @@ def init_connection():
 
 supabase: Client = init_connection()
 
-# ====================== 2. 介面中文化與樣式黑科技 ======================
+# ====================== 2. 獲取 GPS 位置 ======================
+# 建議放在頁面頂部，這樣進入頁面就會詢問權限
+location = get_geolocation()
+
+curr_lat = 25.0330  # 預設值（台北）
+curr_lon = 121.5654
+location_ready = False
+
+if location:
+    curr_lat = location['coords']['latitude']
+    curr_lon = location['coords']['longitude']
+    location_ready = True
+    st.success(f"📍 已取得當前位置：{curr_lat:.4f}, {curr_lon:.4f}")
+else:
+    st.warning("⚠️ 無法取得 GPS 訊號，將使用預設座標（或請開啟定位權限）")
+
+# ====================== 3. 介面樣式 (保持不變) ======================
 st.set_page_config(page_title="植物發現地圖", layout="centered", page_icon="🌿")
 
 st.markdown(
     """
     <style>
-    /* 1. 隱藏相機按鈕原本的英文文字 */
-    div[data-testid="stCameraInput"] button:first-child p {
-        display: none !important;
-    }
-
-    /* 2. 在按鈕正中心注入中文 */
+    div[data-testid="stCameraInput"] button:first-child p { display: none !important; }
     div[data-testid="stCameraInput"] button:first-child::before {
         content: "📸 點擊拍照辨識" !important;
         visibility: visible !important;
@@ -41,11 +53,7 @@ st.markdown(
         color: inherit;
         display: block !important;
     }
-    
-    /* 3. 確保按鈕寬度自動適應 */
-    div[data-testid="stCameraInput"] button {
-        min-height: 3rem !important;
-    }
+    div[data-testid="stCameraInput"] button { min-height: 3rem !important; }
     </style>
     """,
     unsafe_allow_html=True
@@ -53,7 +61,7 @@ st.markdown(
 
 st.title("🌿 全民植物發現地圖")
 
-# ====================== 3. 照片輸入區 ======================
+# ====================== 4. 照片輸入區 ======================
 img_file = None
 tab_cam, tab_file = st.tabs(["📸 啟動相機", "📁 從相簿上傳"])
 
@@ -67,20 +75,17 @@ with tab_file:
     if file_in and not img_file:
         img_file = file_in
 
-# ====================== 4. AI 辨識與上傳邏輯 ======================
+# ====================== 5. AI 辨識與上傳邏輯 ======================
 if img_file is not None:
     st.image(img_file, width=350, caption="準備辨識的照片")
     
-    # 建立唯一 ID 防止重複觸發
     img_id = f"{img_file.name}_{img_file.size}"
     
     if "ai_cache" not in st.session_state or st.session_state.get("last_img_id") != img_id:
         with st.spinner("🤖 AI 正在努力辨識植物..."):
             try:
                 model = genai.GenerativeModel('gemini-2.0-flash-lite-preview-02-05') 
-                
                 prompt = "請詳細辨識此植物。格式：\n中文名稱：xxx\n學名：xxx\n科別：xxx\n簡介：xxx（50字內）"
-                
                 response = model.generate_content([
                     prompt,
                     {"mime_type": "image/jpeg", "data": img_file.getvalue()}
@@ -94,7 +99,6 @@ if img_file is not None:
     ai_result = st.session_state.ai_cache
     st.info(f"💡 AI 辨識建議：\n{ai_result}")
 
-    # 解析中文名稱
     default_name = ""
     if "中文名稱：" in ai_result:
         try:
@@ -103,6 +107,9 @@ if img_file is not None:
             default_name = ""
 
     plant_name = st.text_input("確認或修改名稱", value=default_name)
+
+    # 顯示目前抓到的座標，讓使用者放心
+    st.write(f"🗺️ 即將標記位置：`{curr_lat:.4f}, {curr_lon:.4f}`")
 
     if st.button("🚀 確認並上傳到地圖", type="primary", use_container_width=True):
         if not plant_name.strip():
@@ -121,12 +128,12 @@ if img_file is not None:
                     )
                     img_url = supabase.storage.from_("plant-images").get_public_url(file_path)
 
-                    # 2. 寫入資料庫 (已移除 ID 欄位)
+                    # 2. 寫入資料庫 (使用動態抓取的 curr_lat, curr_lon)
                     data = {
                         "name": plant_name.strip(),
                         "image_url": img_url,
-                        "latitude": 25.0330,
-                        "longitude": 121.5654,
+                        "latitude": curr_lat,
+                        "longitude": curr_lon,
                         "ai_result": ai_result
                     }
                     supabase.table("plants").insert(data).execute()
@@ -138,7 +145,7 @@ if img_file is not None:
             except Exception as e:
                 st.error(f"上傳失敗：{e}")
 
-# ====================== 5. 地圖與歷史紀錄展示 ======================
+# ====================== 6. 地圖與歷史紀錄 (保持不變) ======================
 st.divider()
 
 try:
@@ -148,6 +155,7 @@ try:
     if all_plants:
         st.subheader("🌍 植物分佈地圖")
         map_df = pd.DataFrame(all_plants)
+        # 確保經緯度欄位名稱符合 st.map 要求
         map_df = map_df.rename(columns={"latitude": "lat", "longitude": "lon"})
         st.map(map_df)
 
@@ -163,7 +171,5 @@ try:
                     with st.expander("查看辨識詳情"):
                         st.write(p.get('ai_result', '無詳細資料'))
                 st.divider()
-    else:
-        st.info("地圖目前還沒有紀錄，快來當第一個貢獻者！")
 except Exception as e:
     st.write("資料同步中...")
