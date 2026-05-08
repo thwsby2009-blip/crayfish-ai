@@ -159,6 +159,36 @@ if img_file is not None:
             except Exception as e:
                 st.error(f"上傳失敗：{e}")
 
+for p in all_plants[:10]:
+            with st.container():
+                col_img, col_txt = st.columns([1, 2])
+                with col_img:
+                    st.image(p['image_url'], use_container_width=True)
+                with col_txt:
+                    st.markdown(f"### {p['name']}")
+                    st.caption(f"📅 {p.get('created_at', '')[:16].replace('T', ' ')}")
+                    
+                    # 建立橫向排列的按鈕區
+                    btn_col1, btn_col2 = st.columns([1, 1])
+                    with btn_col1:
+                        with st.expander("查看詳情"):
+                            st.write(p.get('ai_result', '無詳細資料'))
+                    
+                    with btn_col2:
+                        # 這是刪除按鈕，為了安全，我們加一個 key 防止衝突
+                        if st.button(f"🗑️ 刪除", key=f"del_{p['created_at']}"):
+                            try:
+                                # A. 從資料庫刪除 (假設你的表有 created_at 作為唯一識別)
+                                supabase.table("plants").delete().eq("created_at", p['created_at']).execute()
+                                
+                                # B. 從 Storage 刪除 (需要解析 URL 拿到檔名，或存檔時紀錄檔名)
+                                # 這裡先做資料庫刪除，App 就會隱藏該筆資料
+                                st.success("紀錄已移除！")
+                                time.sleep(1)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"刪除失敗：{e}")
+                st.divider()
 # ====================== 5. 地圖與歷史紀錄展示 ======================
 st.divider()
 
