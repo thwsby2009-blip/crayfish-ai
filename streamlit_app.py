@@ -15,86 +15,98 @@ if 'user_id' not in st.session_state:
 
 my_id = st.session_state['user_id']
 
-# ====================== 1. 核心設定 ======================
-UPABASE_URL = "https://sxhhphxdkqxkjveqkwtc.supabase.co"
-SUPABASE_KEY = st.secrets.get("SUPABASE_KEY")
-GEMINI_API_KEY = st.secrets.get("GEMINI_KEY")
+import streamlit as st
+from supabase import create_client, Client
+import google.generativeai as genai
+import time
+import pandas as pd
+import uuid
+from streamlit_js_eval import streamlit_js_eval, get_geolocation
+from PIL import Image
+import io
 
-if not GEMINI_API_KEY or not SUPABASE_KEY:
-    st.error("❌ Secrets 金鑰缺失，請檢查設定。")
-    st.stop()
+# ====================== 1. 初始化與金鑰設定 ======================
+# 請確保你的 secrets 裡面有這些資訊
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 genai.configure(api_key=GEMINI_API_KEY)
 
-@st.cache_resource
-def init_connection():
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+# 設備身分識別 (User ID)
+if 'my_id' not in st.session_state:
+    # 這裡可以根據需要調整 UUID 的持久性邏輯
+    st.session_state.my_id = str(uuid.uuid4())
+my_id = st.session_state.my_id
 
-supabase: Client = init_connection()
-# ====================== 2. 介面中文化與樣式黑科技 ======================
-st.set_page_config(page_title="植物發現地圖", layout="centered", page_icon="🌿")
-
-st.markdown(
-    """
-    <style>
-    /* 1. 隱藏相機按鈕原本的英文文字 */
-    div[data-testid="stCameraInput"] button:first-child p {
-        display: none !important;
-    }
-
-    /* 2. 在按鈕正中心注入中文 */
-    div[data-testid="stCameraInput"] button:first-child::before {
-        content: "📸 點擊拍照辨識" !important;
-        visibility: visible !important;
-        font-weight: bold !important;
-        font-size: 1rem !important;
-        color: inherit;
-        display: block !important;
-    }
-    
-    /* 3. 確保按鈕寬度自動適應 */
-    div[data-testid="stCameraInput"] button {
-        min-height: 3rem !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-st.title("🌿 全民植物發現地圖")
-
-# ====================== 恢復昨天的定位功能 ======================
-st.subheader("📍 所在位置確認")
-
-# 這裡呼叫昨天那個會動的工具
+# ====================== 2. 獲取地理位置 ======================
 loc = get_geolocation()
+curr_lat = loc['coords']['latitude'] if loc else 25.0330
+curr_lon = loc['coords']['longitude'] if loc else 121.5654
 
-if loc:
-    curr_lat = loc['coords']['latitude']
-    curr_lon = loc['coords']['longitude']
-    st.success(f"✅ 定位成功：{curr_lat:.4f}, {curr_lon:.4f}")
-else:
-    curr_lat, curr_lon = 25.0330, 121.5654
-    st.info("🛰️ 正在搜尋 GPS 訊號... (請確保手機已開啟定位並允許瀏覽器存取)")
-    # 增加一個手動觸發按鈕，這是昨天維持穩定的關鍵
-    if st.button("🔄 重新整理 GPS 座標"):
+# ====================== 3. 圖片處理與辨識 ======================
+st.title("🌿 全台植物地圖 AI 辨識")
+uploaded_file = st.camera_input("拍照辨識植物")
+
+if uploaded_file is not None:
+    with st.status("🚀 處理中，請稍候...", expanded=True) as status:
+        # --- A. 圖片壓縮手術 ---
+        status.write("🖼️ 正在優化圖片大小...")
+        original_img = Image.open(uploaded_file)
+        
+        # 縮放：保持比例，長邊最大 1024 像素
+        max_size = 1024
+        original_img.thumbnail((max_size, max_size), Image.LANCZOS)
+        
+        # 轉成 RGB (確保 JPEG 格式相容) 並壓縮
+        img_byte_arr = io.BytesIO()
+        # quality=70 是平衡畫質與檔案大小的最佳點
+        original_img.convert("RGB").save(img_byte_arr, format='JPEG', quality=70)
+        compressed_bytes = img_byte_arr.getvalue()
+        
+        # --- B. 上傳至 Supabase Storage ---
+        status.write("☁️ 正在上傳至雲端...")
+        file_name = f"{int(time.time())}_{uuid.uuid4().hex[:6]}.jpg"
+        
+        # 注意：這裡傳入的是壓縮後的 compressed_bytes
+        supabase.storage.from_("plant_images").upload(
+            file_name, 
+            compressed_bytes, 
+            {"content-type": "image/jpeg"}
+        )
+        
+        # 獲取公開網址
+        img_url = supabase.storage.from_("plant_images").get_public_url(file_name)
+
+        # --- C. 使用 Gemini AI 辨識 ---
+        status.write("🧠 AI 正在辨識植物...")
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        # 直接使用壓縮後的圖片給 AI 辨識 (速度更快)
+        img_for_ai = Image.open(io.BytesIO(compressed_bytes))
+        
+        response = model.generate_content([
+            "你是一個植物學家。請辨識這張圖片中的植物名稱，並簡單說明其特徵與照顧方式。", 
+            img_for_ai
+        ])
+        ai_result = response.text
+        plant_name = ai_result.split('\n')[0].replace('#', '').strip()
+
+        # --- D. 寫入資料庫 ---
+        status.write("💾 儲存紀錄中...")
+        data = {
+            "name": plant_name,
+            "image_url": img_url,
+            "latitude": curr_lat,
+            "longitude": curr_lon,
+            "ai_result": ai_result,
+            "user_id": my_id
+        }
+        supabase.table("plants").insert(data).execute()
+        
+        status.update(label="✅ 辨識完成！", state="complete", expanded=False)
+        st.success(f"辨識成功：{plant_name}")
         st.rerun()
-
-# 這裡可以加一個小地圖預覽目前位置，讓你確認它不是在 101
-st.write(f"目前紀錄座標: {curr_lat}, {curr_lon}")
-# ====================== 3. 照片輸入區 ======================
-img_file = None
-tab_cam, tab_file = st.tabs(["📸 啟動相機", "📁 從相簿上傳"])
-
-with tab_cam:
-    cam_in = st.camera_input("拍照後 AI 會自動辨識")
-    if cam_in:
-        img_file = cam_in
-
-with tab_file:
-    file_in = st.file_uploader("選擇植物照片", type=["jpg", "jpeg", "png"])
-    if file_in and not img_file:
-        img_file = file_in
 
 # ====================== 4. AI 辨識與上傳邏輯 ======================
 if img_file is not None:
