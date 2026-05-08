@@ -55,6 +55,16 @@ st.markdown(
 
 st.title("🌿 全民植物發現地圖")
 
+# ====================== 獲取即時 GPS ======================
+# 這行會讓瀏覽器跳出詢問視窗
+location = get_geolocation()
+
+if location:
+    curr_lat = location['coords']['latitude']
+    curr_lon = location['coords']['longitude']
+else:
+    # 預設值（台北101），確保沒抓到時不會出錯
+    curr_lat, curr_lon = 25.0330, 121.5654
 # ====================== 3. 照片輸入區 ======================
 img_file = None
 tab_cam, tab_file = st.tabs(["📸 啟動相機", "📁 從相簿上傳"])
