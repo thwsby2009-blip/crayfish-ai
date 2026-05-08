@@ -3,7 +3,7 @@ from supabase import create_client, Client
 import time
 import google.generativeai as genai
 import pandas as pd
-from streamlit_js_eval import get_geolocation  # 新增：獲取 GPS 的工具
+from streamlit_js_eval import get_geolocation
 
 # ====================== 1. 核心設定 ======================
 SUPABASE_URL = "https://sxhhphxdkqxkjveqkwtc.supabase.co"
@@ -22,23 +22,7 @@ def init_connection():
 
 supabase: Client = init_connection()
 
-# ====================== 2. 獲取 GPS 位置 ======================
-# 建議放在頁面頂部，這樣進入頁面就會詢問權限
-location = get_geolocation()
-
-curr_lat = 25.0330  # 預設值（台北）
-curr_lon = 121.5654
-location_ready = False
-
-if location:
-    curr_lat = location['coords']['latitude']
-    curr_lon = location['coords']['longitude']
-    location_ready = True
-    st.success(f"📍 已取得當前位置：{curr_lat:.4f}, {curr_lon:.4f}")
-else:
-    st.warning("⚠️ 無法取得 GPS 訊號，將使用預設座標（或請開啟定位權限）")
-
-# ====================== 3. 介面樣式 (保持不變) ======================
+# ====================== 2. 介面樣式與設定 ======================
 st.set_page_config(page_title="植物發現地圖", layout="centered", page_icon="🌿")
 
 st.markdown(
@@ -60,6 +44,20 @@ st.markdown(
 )
 
 st.title("🌿 全民植物發現地圖")
+
+# ====================== 3. GPS 定位區 (移至標題下方) ======================
+location = get_geolocation()
+
+# 初始化預設座標 (台北)
+curr_lat = 25.0330
+curr_lon = 121.5654
+
+if location:
+    curr_lat = location['coords']['latitude']
+    curr_lon = location['coords']['longitude']
+    st.success(f"📍 定位成功：`{curr_lat:.4f}, {curr_lon:.4f}`")
+else:
+    st.warning("⚠️ 等待 GPS 定位中...（請確保已開啟瀏覽器定位權限）")
 
 # ====================== 4. 照片輸入區 ======================
 img_file = None
@@ -108,9 +106,6 @@ if img_file is not None:
 
     plant_name = st.text_input("確認或修改名稱", value=default_name)
 
-    # 顯示目前抓到的座標，讓使用者放心
-    st.write(f"🗺️ 即將標記位置：`{curr_lat:.4f}, {curr_lon:.4f}`")
-
     if st.button("🚀 確認並上傳到地圖", type="primary", use_container_width=True):
         if not plant_name.strip():
             st.warning("請填寫植物名稱！")
@@ -128,7 +123,7 @@ if img_file is not None:
                     )
                     img_url = supabase.storage.from_("plant-images").get_public_url(file_path)
 
-                    # 2. 寫入資料庫 (使用動態抓取的 curr_lat, curr_lon)
+                    # 2. 寫入資料庫 (使用當前動態抓取的 GPS)
                     data = {
                         "name": plant_name.strip(),
                         "image_url": img_url,
@@ -139,13 +134,13 @@ if img_file is not None:
                     supabase.table("plants").insert(data).execute()
 
                     st.balloons()
-                    st.success(f"🎉 成功！「{plant_name}」已加入地圖。")
+                    st.success(f"🎉 成功！「{plant_name}」已標記在您當前的位置。")
                     time.sleep(1.5)
                     st.rerun()
             except Exception as e:
                 st.error(f"上傳失敗：{e}")
 
-# ====================== 6. 地圖與歷史紀錄 (保持不變) ======================
+# ====================== 6. 地圖與歷史紀錄展示 ======================
 st.divider()
 
 try:
@@ -155,7 +150,6 @@ try:
     if all_plants:
         st.subheader("🌍 植物分佈地圖")
         map_df = pd.DataFrame(all_plants)
-        # 確保經緯度欄位名稱符合 st.map 要求
         map_df = map_df.rename(columns={"latitude": "lat", "longitude": "lon"})
         st.map(map_df)
 
