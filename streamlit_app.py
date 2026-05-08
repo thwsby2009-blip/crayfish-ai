@@ -5,9 +5,9 @@ import google.generativeai as genai
 import pandas as pd
 
 # ====================== 1. 核心設定 ======================
-SUPABASE_URL = "https://sxhhphxdkqxkjveqkwtc.supabase.co"
+UPABASE_URL = "https://sxhhphxdkqxkjveqkwtc.supabase.co"
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY")
-GEMINI_API_KEY = st.secrets.get("GEMINI_KEY")*
+GEMINI_API_KEY = st.secrets.get("GEMINI_KEY")
 
 if not GEMINI_API_KEY or not SUPABASE_KEY:
     st.error("❌ Secrets 金鑰缺失，請檢查設定。")
@@ -20,7 +20,6 @@ def init_connection():
     return create_client(SUPABASE_URL, SUPABASE_KEY)
 
 supabase: Client = init_connection()
-
 # ====================== 2. 介面中文化與樣式黑科技 ======================
 st.set_page_config(page_title="植物發現地圖", layout="centered", page_icon="🌿")
 
