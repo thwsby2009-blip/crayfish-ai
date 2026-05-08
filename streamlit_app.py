@@ -163,6 +163,7 @@ if img_file is not None:
 st.divider()
 
 try:
+    # 讀取所有資料
     res = supabase.table("plants").select("*").order("created_at", desc=True).execute()
     all_plants = res.data
 
@@ -173,7 +174,7 @@ try:
         st.map(map_df)
 
         st.subheader("📍 最近發現紀錄")
-        for p in all_plants[:10]:
+        for p in all_plants[:10]: # 顯示最近 10 筆
             with st.container():
                 col_img, col_txt = st.columns([1, 2])
                 with col_img:
@@ -181,10 +182,25 @@ try:
                 with col_txt:
                     st.markdown(f"### {p['name']}")
                     st.caption(f"📅 {p.get('created_at', '')[:16].replace('T', ' ')}")
+                    
+                    # 詳情與刪除按鈕
                     with st.expander("查看辨識詳情"):
                         st.write(p.get('ai_result', '無詳細資料'))
+                    
+                    # 刪除功能 (用唯一名稱當 key)
+                    if st.button(f"🗑️ 刪除此紀錄", key=f"del_{p.get('id', p['created_at'])}"):
+                        try:
+                            # 1. 從資料庫刪除 (用 created_at 比對)
+                            supabase.table("plants").delete().eq("created_at", p['created_at']).execute()
+                            st.success("✅ 刪除成功！")
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"刪除失敗：{e}")
                 st.divider()
     else:
         st.info("地圖目前還沒有紀錄，快來當第一個貢獻者！")
+except Exception as e:
+    st.write("資料同步中...")
 except Exception as e:
     st.write("資料同步中...")
