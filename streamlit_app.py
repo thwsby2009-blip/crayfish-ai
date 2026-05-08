@@ -24,9 +24,6 @@ supabase: Client = init_connection()
 # ====================== 2. 介面中文化與樣式黑科技 ======================
 st.set_page_config(page_title="植物發現地圖", layout="centered", page_icon="🌿")
 
-# ====================== 2. 介面中文化與樣式黑科技 ======================
-st.set_page_config(page_title="植物發現地圖", layout="centered", page_icon="🌿")
-
 st.markdown(
     """
     <style>
