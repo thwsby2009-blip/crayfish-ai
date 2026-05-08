@@ -28,7 +28,20 @@ st.set_page_config(page_title="植物發現地圖", layout="centered", page_icon
 st.markdown(
     """
     <style>
-    div[data-testid="stCameraInput"] button:first-child p { display: none !important; }
+    /* 1. 調整大標題字體，防止手機版換行 */
+    h1 {
+        font-size: 1.8rem !important; /* 縮小一點點，原預設通常是 2.25rem */
+        white-space: nowrap !important; /* 強制不換行 */
+        overflow: hidden;
+        text-overflow: ellipsis; /* 如果真的塞不下，顯示... */
+    }
+
+    /* 2. 隱藏相機按鈕原本的英文文字 */
+    div[data-testid="stCameraInput"] button:first-child p { 
+        display: none !important; 
+    }
+
+    /* 3. 在按鈕正中心注入中文 */
     div[data-testid="stCameraInput"] button:first-child::before {
         content: "📸 點擊拍照辨識" !important;
         visibility: visible !important;
@@ -37,7 +50,11 @@ st.markdown(
         color: inherit;
         display: block !important;
     }
-    div[data-testid="stCameraInput"] button { min-height: 3rem !important; }
+    
+    /* 4. 確保按鈕寬度自動適應 */
+    div[data-testid="stCameraInput"] button { 
+        min-height: 3rem !important; 
+    }
     </style>
     """,
     unsafe_allow_html=True
