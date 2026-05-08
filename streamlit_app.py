@@ -6,6 +6,8 @@ import pandas as pd
 import uuid
 # 這裡修正了：從套件中匯入函數
 from streamlit_js_eval import streamlit_js_eval, get_geolocation
+from PIL import Image 
+import io
 
 # 產生或獲取當前使用者的唯一 ID (存在瀏覽器中，重新整理不會消失，但關掉分頁可能會變)
 if 'user_id' not in st.session_state:
