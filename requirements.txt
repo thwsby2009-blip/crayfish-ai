@@ -3,3 +3,4 @@ supabase
 pandas
 google-generativeai
 streamlit-js-eval
+Pillow
