@@ -4,8 +4,9 @@ import time
 import google.generativeai as genai
 import pandas as pd
 from streamlit_js_eval import get_geolocation
+import uuid 
 
-# ====================== 1. 核心設定 ======================
+# ====================== 1. 核心設定與身分識別 ======================
 SUPABASE_URL = "https://sxhhphxdkqxkjveqkwtc.supabase.co"
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY")
 GEMINI_API_KEY = st.secrets.get("GEMINI_KEY")
@@ -16,32 +17,26 @@ if not GEMINI_API_KEY or not SUPABASE_KEY:
 
 genai.configure(api_key=GEMINI_API_KEY)
 
+# 🔒 早上這一段：產生或獲取當前使用者的唯一 ID
+if 'user_id' not in st.session_state:
+    st.session_state['user_id'] = str(uuid.uuid4())
+
+my_id = st.session_state['user_id']
+
 @st.cache_resource
 def init_connection():
     return create_client(SUPABASE_URL, SUPABASE_KEY)
 
 supabase: Client = init_connection()
 
-# ====================== 2. 介面樣式與設定 ======================
+# ====================== 2. 介面樣式 (防止手機標題換行) ======================
 st.set_page_config(page_title="植物發現地圖", layout="centered", page_icon="🌿")
 
 st.markdown(
     """
     <style>
-    /* 1. 調整大標題字體，防止手機版換行 */
-    h1 {
-        font-size: 1.8rem !important; /* 縮小一點點，原預設通常是 2.25rem */
-        white-space: nowrap !important; /* 強制不換行 */
-        overflow: hidden;
-        text-overflow: ellipsis; /* 如果真的塞不下，顯示... */
-    }
-
-    /* 2. 隱藏相機按鈕原本的英文文字 */
-    div[data-testid="stCameraInput"] button:first-child p { 
-        display: none !important; 
-    }
-
-    /* 3. 在按鈕正中心注入中文 */
+    h1 { font-size: 1.8rem !important; white-space: nowrap !important; }
+    div[data-testid="stCameraInput"] button:first-child p { display: none !important; }
     div[data-testid="stCameraInput"] button:first-child::before {
         content: "📸 點擊拍照辨識" !important;
         visibility: visible !important;
@@ -50,11 +45,7 @@ st.markdown(
         color: inherit;
         display: block !important;
     }
-    
-    /* 4. 確保按鈕寬度自動適應 */
-    div[data-testid="stCameraInput"] button { 
-        min-height: 3rem !important; 
-    }
+    div[data-testid="stCameraInput"] button { min-height: 3rem !important; }
     </style>
     """,
     unsafe_allow_html=True
@@ -62,12 +53,9 @@ st.markdown(
 
 st.title("🌿 全民植物發現地圖")
 
-# ====================== 3. GPS 定位區 (移至標題下方) ======================
+# ====================== 3. GPS 定位區 ======================
 location = get_geolocation()
-
-# 初始化預設座標 (台北)
-curr_lat = 25.0330
-curr_lon = 121.5654
+curr_lat, curr_lon = 25.0330, 121.5654 # 預設台北
 
 if location:
     curr_lat = location['coords']['latitude']
@@ -96,11 +84,14 @@ if img_file is not None:
     
     img_id = f"{img_file.name}_{img_file.size}"
     
+    # 防止重複觸發 AI
     if "ai_cache" not in st.session_state or st.session_state.get("last_img_id") != img_id:
-        with st.spinner("🤖 AI 正在努力辨識植物..."):
+        with st.spinner("🤖 Gemini 2.5 正在努力辨識植物..."):
             try:
+                # 這裡使用你的 2.5 模組
                 model = genai.GenerativeModel('gemini-2.5-flash') 
                 prompt = "請詳細辨識此植物。格式：\n中文名稱：xxx\n學名：xxx\n科別：xxx\n簡介：xxx（50字內）"
+                
                 response = model.generate_content([
                     prompt,
                     {"mime_type": "image/jpeg", "data": img_file.getvalue()}
@@ -114,6 +105,7 @@ if img_file is not None:
     ai_result = st.session_state.ai_cache
     st.info(f"💡 AI 辨識建議：\n{ai_result}")
 
+    # 解析名稱
     default_name = ""
     if "中文名稱：" in ai_result:
         try:
@@ -140,18 +132,19 @@ if img_file is not None:
                     )
                     img_url = supabase.storage.from_("plant-images").get_public_url(file_path)
 
-                    # 2. 寫入資料庫 (使用當前動態抓取的 GPS)
+                    # 2. 寫入資料庫 (加入 user_id)
                     data = {
                         "name": plant_name.strip(),
                         "image_url": img_url,
                         "latitude": curr_lat,
                         "longitude": curr_lon,
-                        "ai_result": ai_result
+                        "ai_result": ai_result,
+                        "user_id": my_id  # <--- 早上加的這行
                     }
                     supabase.table("plants").insert(data).execute()
 
                     st.balloons()
-                    st.success(f"🎉 成功！「{plant_name}」已標記在您當前的位置。")
+                    st.success("🎉 成功！已加入紀錄。")
                     time.sleep(1.5)
                     st.rerun()
             except Exception as e:
@@ -171,13 +164,33 @@ try:
         st.map(map_df)
 
         st.subheader("📍 最近發現紀錄")
-        for p in all_plants[:10]:
+        for p in all_plants[:15]:
             with st.container():
                 col_img, col_txt = st.columns([1, 2])
                 with col_img:
                     st.image(p['image_url'], use_container_width=True)
                 with col_txt:
-                    st.markdown(f"### {p['name']}")
+                    # 判別是否為本人上傳
+                    is_mine = p.get('user_id') == my_id
+                    
+                    col_header, col_del = st.columns([0.8, 0.2])
+                    with col_header:
+                        st.markdown(f"### {p['name']}")
+                    
+                    # 只有本人才顯示刪除按鈕
+                    if is_mine:
+                        with col_del:
+                            if st.button("🗑️", key=f"del_{p['created_at']}"):
+                                try:
+                                    supabase.table("plants").delete().eq("created_at", p['created_at']).execute()
+                                    st.success("已刪除")
+                                    time.sleep(0.5)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error("刪除失敗")
+                    else:
+                        st.caption("🔒 唯讀模式")
+
                     st.caption(f"📅 {p.get('created_at', '')[:16].replace('T', ' ')}")
                     with st.expander("查看辨識詳情"):
                         st.write(p.get('ai_result', '無詳細資料'))
