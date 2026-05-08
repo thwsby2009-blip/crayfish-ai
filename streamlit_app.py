@@ -89,7 +89,7 @@ if img_file is not None:
     if "ai_cache" not in st.session_state or st.session_state.get("last_img_id") != img_id:
         with st.spinner("🤖 AI 正在努力辨識植物..."):
             try:
-                model = genai.GenerativeModel('gemini-2.0-flash-lite-preview-02-05') 
+                model = genai.GenerativeModel('gemini-2.5-flash') 
                 
                 prompt = "請詳細辨識此植物。格式：\n中文名稱：xxx\n學名：xxx\n科別：xxx\n簡介：xxx（50字內）"
                 
