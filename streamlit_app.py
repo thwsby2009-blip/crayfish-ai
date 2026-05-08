@@ -211,39 +211,63 @@ if img_file is not None:
                     st.rerun()
             except Exception as e:
                 st.error(f"上傳失敗：{e}")
-# ====================== 6. 地圖與歷史紀錄展示 ======================
+# ====================== 6. 地圖與歷史紀錄展示 (分月份管理) ======================
 st.divider()
 
 try:
+    # 1. 先抓取所有資料
     res = supabase.table("plants").select("*").order("created_at", desc=True).execute()
     all_plants = res.data
 
     if all_plants:
-        st.subheader("🌍 植物分佈地圖")
-        map_df = pd.DataFrame(all_plants)
-        map_df = map_df.rename(columns={"latitude": "lat", "longitude": "lon"})
-        st.map(map_df)
+        # 轉換為 Pandas DataFrame 方便處理時間
+        df = pd.DataFrame(all_plants)
+        df['created_at'] = pd.to_datetime(df['created_at'])
+        
+        # --- 💡 新增：月份篩選 UI ---
+        st.subheader("📅 時光地圖：選擇觀測月份")
+        
+        # 取得資料中所有的「年份-月份」組合 (例如：2024-05)
+        df['month_year'] = df['created_at'].dt.strftime('%Y-%m')
+        month_list = sorted(df['month_year'].unique().tolist(), reverse=True)
+        month_list.insert(0, "全部紀錄") # 加入全部選項
+        
+        selected_month = st.selectbox("切換月份查看：", month_list)
+        
+        # 根據選擇過濾資料
+        if selected_month != "全部紀錄":
+            display_df = df[df['month_year'] == selected_month]
+        else:
+            display_df = df
 
-        st.subheader("📍 最近發現紀錄")
-        for p in all_plants[:15]:
+        # --- 2. 顯示地圖 ---
+        st.subheader(f"🌍 {selected_month} 植物分佈")
+        map_data = display_df.rename(columns={"latitude": "lat", "longitude": "lon"})
+        st.map(map_data)
+
+        # --- 3. 顯示列表 ---
+        st.subheader(f"📍 {selected_month} 發現紀錄")
+        
+        # 將過濾後的資料轉回 list 方便迴圈顯示
+        filtered_plants = display_df.to_dict('records')
+
+        for p in filtered_plants[:20]: # 每次顯示最新 20 筆
             with st.container():
                 col_img, col_txt = st.columns([1, 2])
                 with col_img:
                     st.image(p['image_url'], use_container_width=True)
                 with col_txt:
-                    # 判別是否為本人上傳
                     is_mine = p.get('user_id') == my_id
                     
                     col_header, col_del = st.columns([0.8, 0.2])
                     with col_header:
                         st.markdown(f"### {p['name']}")
                     
-                    # 只有本人才顯示刪除按鈕
                     if is_mine:
                         with col_del:
-                            if st.button("🗑️", key=f"del_{p['created_at']}"):
+                            if st.button("🗑️", key=f"del_{p['id']}"): # 建議改用 id 刪除
                                 try:
-                                    supabase.table("plants").delete().eq("created_at", p['created_at']).execute()
+                                    supabase.table("plants").delete().eq("id", p['id']).execute()
                                     st.success("已刪除")
                                     time.sleep(0.5)
                                     st.rerun()
@@ -252,9 +276,19 @@ try:
                     else:
                         st.caption("🔒 唯讀模式")
 
-                    st.caption(f"📅 {p.get('created_at', '')[:16].replace('T', ' ')}")
+                    # 📅 顯示時間與導航鈕
+                    st.caption(f"📅 {str(p['created_at'])[:16].replace('T', ' ')}")
+                    
+                    # 🔗 加入剛才提到的 Google 地圖導航功能
+                    g_url = f"https://www.google.com/maps/search/?api=1&query={p['latitude']},{p['longitude']}"
+                    st.link_button("📍 在 Google 地圖查看位置", g_url, use_container_width=True)
+
                     with st.expander("查看辨識詳情"):
                         st.write(p.get('ai_result', '無詳細資料'))
                 st.divider()
+    else:
+        st.info("目前尚無任何紀錄，快去拍第一張植物吧！")
+except Exception as e:
+    st.error(f"載入資料時發生錯誤：{e}")
 except Exception as e:
     st.write("資料同步中...")
