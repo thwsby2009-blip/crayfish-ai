@@ -31,6 +31,52 @@ def init_connection():
 
 supabase: Client = init_connection()
 
+# ====================== 1. 核心設定與身分識別 ======================
+SUPABASE_URL = "https://sxhhphxdkqxkjveqkwtc.supabase.co"
+SUPABASE_KEY = st.secrets.get("SUPABASE_KEY")
+GEMINI_API_KEY = st.secrets.get("GEMINI_KEY")
+
+if not GEMINI_API_KEY or not SUPABASE_KEY:
+    st.error("❌ Secrets 金鑰缺失，請檢查設定。")
+    st.stop()
+
+genai.configure(api_key=GEMINI_API_KEY)
+
+if 'user_id' not in st.session_state:
+    st.session_state['user_id'] = str(uuid.uuid4())
+
+my_id = st.session_state['user_id']
+
+@st.cache_resource
+def init_connection():
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
+
+supabase: Client = init_connection()
+
+# ====================== 新增：圖片壓縮工具函數 ======================
+def compress_image(uploaded_file):
+    """將圖片縮放並壓縮品質，解決手機照片過大的問題"""
+    img = Image.open(uploaded_file)
+    
+    # 自動修正手機拍照的旋轉問題
+    if hasattr(img, '_getexif') and img._getexif() is not None:
+        from PIL import ExifTags
+        exif = dict(img._getexif().items())
+        orientation = next((k for k, v in ExifTags.TAGS.items() if v == 'Orientation'), None)
+        if orientation in exif:
+            if exif[orientation] == 3: img = img.rotate(180, expand=True)
+            elif exif[orientation] == 6: img = img.rotate(270, expand=True)
+            elif exif[orientation] == 8: img = img.rotate(90, expand=True)
+            
+    if img.mode in ("RGBA", "P"):
+        img = img.convert("RGB")
+    
+    img.thumbnail((1200, 1200)) # 限制最大寬度為 1200px
+    
+    buffer = io.BytesIO()
+    img.save(buffer, format="JPEG", quality=75) # 品質 75 是最佳平衡點
+    return buffer.getvalue()
+
 # ====================== 2. 介面樣式 (防止手機標題換行) ======================
 st.set_page_config(page_title="植物發現地圖", layout="centered", page_icon="🌿")
 
