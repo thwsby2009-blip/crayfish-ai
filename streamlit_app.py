@@ -24,27 +24,30 @@ supabase: Client = init_connection()
 # ====================== 2. 介面中文化與樣式黑科技 ======================
 st.set_page_config(page_title="植物發現地圖", layout="centered", page_icon="🌿")
 
-# 這一咒語強制將鏡頭開啟後的 "Take Photo" 換成中文
+# ====================== 2. 介面中文化與樣式黑科技 ======================
+st.set_page_config(page_title="植物發現地圖", layout="centered", page_icon="🌿")
+
 st.markdown(
     """
     <style>
-    /* 1. 隱藏原始文字 (針對所有可能的層級) */
-    [data-testid="stCameraInputButton"] button p {
-        font-size: 0 !important;
+    /* 1. 隱藏 Tab 裡面相機按鈕原本的英文 */
+    div[data-testid="stCameraInputButton"] button p {
         display: none !important;
     }
 
-    /* 2. 強制注入中文文字 */
-    [data-testid="stCameraInputButton"] button::before {
+    /* 2. 在按鈕正中心注入中文，並確保它在最前面 */
+    div[data-testid="stCameraInputButton"] button::before {
         content: "📸 點擊拍照辨識" !important;
-        font-size: 1rem !important;
         visibility: visible !important;
         font-weight: bold !important;
+        font-size: 1rem !important;
+        color: inherit;
+        display: block !important;
     }
-
-    /* 3. 修正按鈕高度，確保文字不會被切掉 */
-    [data-testid="stCameraInputButton"] button {
-        min-height: 2.5rem !important;
+    
+    /* 3. 確保按鈕寬度自動適應 */
+    div[data-testid="stCameraInputButton"] button {
+        min-height: 3rem !important;
     }
     </style>
     """,
