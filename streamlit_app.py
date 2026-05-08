@@ -1,8 +1,11 @@
 import streamlit as st
 from supabase import create_client, Client
-import time
 import google.generativeai as genai
+import time
 import pandas as pd
+
+# 這裡修正了：從套件中匯入函數
+from streamlit_js_eval import streamlit_js_eval, get_geolocation
 
 # ====================== 1. 核心設定 ======================
 UPABASE_URL = "https://sxhhphxdkqxkjveqkwtc.supabase.co"
