@@ -146,8 +146,8 @@ if img_file is not None:
                     data = {
                         "name": plant_name.strip(),
                         "image_url": img_url,
-                        "latitude": 25.0330,
-                        "longitude": 121.5654,
+                        "latitude": curr_lat,
+                        "longitude": curr_lon,
                         "ai_result": ai_result
                     }
                     supabase.table("plants").insert(data).execute()
