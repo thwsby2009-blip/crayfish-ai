@@ -5,6 +5,8 @@ import google.generativeai as genai
 import pandas as pd
 from streamlit_js_eval import get_geolocation
 import uuid 
+from PIL import Image
+import io
 
 # ====================== 1. 核心設定與身分識別 ======================
 SUPABASE_URL = "https://sxhhphxdkqxkjveqkwtc.supabase.co"
@@ -84,11 +86,9 @@ if img_file is not None:
     
     img_id = f"{img_file.name}_{img_file.size}"
     
-    # 防止重複觸發 AI
     if "ai_cache" not in st.session_state or st.session_state.get("last_img_id") != img_id:
         with st.spinner("🤖 Gemini 2.5 正在努力辨識植物..."):
             try:
-                # 這裡使用你的 2.5 模組
                 model = genai.GenerativeModel('gemini-2.5-flash') 
                 prompt = "請詳細辨識此植物。格式：\n中文名稱：xxx\n學名：xxx\n科別：xxx\n簡介：xxx（50字內）"
                 
@@ -105,7 +105,6 @@ if img_file is not None:
     ai_result = st.session_state.ai_cache
     st.info(f"💡 AI 辨識建議：\n{ai_result}")
 
-    # 解析名稱
     default_name = ""
     if "中文名稱：" in ai_result:
         try:
@@ -120,36 +119,38 @@ if img_file is not None:
             st.warning("請填寫植物名稱！")
         else:
             try:
-                with st.spinner("正在上傳資料..."):
+                with st.spinner("正在壓縮並上傳資料..."):
+                    # --- 👈 執行圖片壓縮 ---
+                    final_img_data = compress_image(img_file)
+                    
                     ts = int(time.time())
                     file_path = f"public/plant_{ts}.jpg"
                     
-                    # 1. 上傳 Storage
+                    # 1. 上傳 Storage (改用 final_img_data)
                     supabase.storage.from_("plant-images").upload(
                         path=file_path,
-                        file=img_file.getvalue(),
+                        file=final_img_data,
                         file_options={"content-type": "image/jpeg"}
                     )
                     img_url = supabase.storage.from_("plant-images").get_public_url(file_path)
 
-                    # 2. 寫入資料庫 (加入 user_id)
+                    # 2. 寫入資料庫
                     data = {
                         "name": plant_name.strip(),
                         "image_url": img_url,
                         "latitude": curr_lat,
                         "longitude": curr_lon,
                         "ai_result": ai_result,
-                        "user_id": my_id  # <--- 早上加的這行
+                        "user_id": my_id
                     }
                     supabase.table("plants").insert(data).execute()
 
                     st.balloons()
-                    st.success("🎉 成功！已加入紀錄。")
+                    st.success("🎉 成功！壓縮後的檔案已加入地圖。")
                     time.sleep(1.5)
                     st.rerun()
             except Exception as e:
                 st.error(f"上傳失敗：{e}")
-
 # ====================== 6. 地圖與歷史紀錄展示 ======================
 st.divider()
 
