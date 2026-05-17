@@ -11,19 +11,10 @@ import io
 # ====================== 1. 核心設定與身分識別 ======================
 SUPABASE_URL = "https://sxhhphxdkqxkjveqkwtc.supabase.co"
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY")
-GEMINI_API_KEY = st.secrets.get("GEMINI_KEY")
 
-if not GEMINI_API_KEY or not SUPABASE_KEY:
-    st.error("❌ Secrets 金鑰缺失，請檢查設定。")
+if not SUPABASE_KEY:
+    st.error("❌ Supabase 金鑰缺失，請檢查 Secrets 設定。")
     st.stop()
-
-genai.configure(api_key=GEMINI_API_KEY)
-
-# 🔒 早上這一段：產生或獲取當前使用者的唯一 ID
-if 'user_id' not in st.session_state:
-    st.session_state['user_id'] = str(uuid.uuid4())
-
-my_id = st.session_state['user_id']
 
 @st.cache_resource
 def init_connection():
@@ -31,27 +22,40 @@ def init_connection():
 
 supabase: Client = init_connection()
 
-# ====================== 1. 核心設定與身分識別 ======================
-SUPABASE_URL = "https://sxhhphxdkqxkjveqkwtc.supabase.co"
-SUPABASE_KEY = st.secrets.get("SUPABASE_KEY")
-GEMINI_API_KEY = st.secrets.get("GEMINI_KEY")
+# ====================== 1-2. API Key 設定（表單式輸入）======================
+st.markdown("---")
+st.markdown("### 🔑 請輸入你的 API Key")
 
-if not GEMINI_API_KEY or not SUPABASE_KEY:
-    st.error("❌ Secrets 金鑰缺失，請檢查設定。")
+with st.form("api_key_form", clear_on_submit=False):
+    st.markdown("**Gemini API Key**（免費申請：https://aistudio.google.com/apikey）")
+    user_gemini_key = st.text_input(
+        "GEMINI_API_KEY",
+        type="password",
+        placeholder="AIza...",
+        label_visibility="collapsed"
+    )
+    st.markdown("*你的 API Key 不會被儲存，只用於本次操作*")
+    submitted = st.form_submit_button("🚀 開始使用", use_container_width=True)
+
+# 还没按按钮就停止
+if not submitted:
+    st.info("👆 填入 GEMINI API Key 後按「開始使用」")
     st.stop()
 
-genai.configure(api_key=GEMINI_API_KEY)
+# 按了按鈕但沒填 key
+if not user_gemini_key:
+    st.error("❌ 請輸入 GEMINI API Key")
+    st.stop()
 
+# 設定 Gemini
+genai.configure(api_key=user_gemini_key)
+st.markdown("---")
+
+# 🔒 產生或獲取當前使用者的唯一 ID
 if 'user_id' not in st.session_state:
     st.session_state['user_id'] = str(uuid.uuid4())
 
 my_id = st.session_state['user_id']
-
-@st.cache_resource
-def init_connection():
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
-
-supabase: Client = init_connection()
 
 # ====================== 新增：圖片壓縮工具函數 ======================
 def compress_image(uploaded_file):
@@ -290,5 +294,3 @@ try:
         st.info("目前尚無任何紀錄，快去拍第一張植物吧！")
 except Exception as e:
     st.error(f"載入資料時發生錯誤：{e}")
-except Exception as e:
-    st.write("資料同步中...")
