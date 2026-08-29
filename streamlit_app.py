@@ -44,33 +44,43 @@ except Exception as e:
     st.stop()
 
 # ====================== 1-2. API Key 設定（表單式輸入）======================
+# 初始化提交狀態
+if 'submitted' not in st.session_state:
+    st.session_state['submitted'] = False
+if 'user_gemini_key' not in st.session_state:
+    st.session_state['user_gemini_key'] = ""
+
 st.markdown("---")
 st.markdown("### 🔑 請輸入你的 API Key")
 
 with st.form("api_key_form", clear_on_submit=False):
     st.markdown("**Gemini API Key**（免費申請：https://aistudio.google.com/apikey）")
-    user_gemini_key = st.text_input(
+    key_input = st.text_input(
         "GEMINI_API_KEY",
         type="password",
+        value=st.session_state['user_gemini_key'],
         placeholder="AIza...",
         label_visibility="collapsed"
     )
     st.markdown("*你的 API Key 不會被儲存，只用於本次操作*")
-    submitted = st.form_submit_button("🚀 開始使用", use_container_width=True)
+    submit_btn = st.form_submit_button("🚀 開始使用", use_container_width=True)
+    
+    if submit_btn:
+        if key_input:
+            st.session_state['user_gemini_key'] = key_input
+            st.session_state['submitted'] = True
+            st.rerun()
+        else:
+            log_error("❌ 請輸入 GEMINI API Key")
 
-# 还没按按钮就停止
-if not submitted:
+# 使用 session_state 判斷是否已提交，防止往下滑動時跳回開頭
+if not st.session_state['submitted']:
     st.info("👆 填入 GEMINI API Key 後按「開始使用」")
-    st.stop()
-
-# 按了按鈕但沒填 key
-if not user_gemini_key:
-    log_error("❌ 請輸入 GEMINI API Key")
     st.stop()
 
 # 設定 Gemini
 try:
-    genai.configure(api_key=user_gemini_key)
+    genai.configure(api_key=st.session_state['user_gemini_key'])
 except Exception as e:
     log_error(f"Gemini 設定失敗: {e}")
     st.stop()
