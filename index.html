@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全民植物發現地圖 | AI Plant Discovery Map</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap');
+        body { font-family: 'Noto Sans TC', sans-serif; }
+        .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px); }
+        .gradient-text {
+            background: linear-gradient(135deg, #2d6a4f 0%, #52b788 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <!-- Hero Section -->
+    <section class="relative min-h-screen flex items-center justify-center overflow-hidden bg-white">
+        <!-- Decorative background -->
+        <div class="absolute top-0 left-0 w-full h-full opacity-10">
+            <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="w-full h-full">
+                <path fill="#2d6a4f" d="M44.7,-76.4C58.1,-69.2,69.2,-58.1,76.4,-44.7C83.6,-31.3,86.9,-15.7,85.3,-0.9C83.7,13.8,77.2,27.7,68.5,40.1C59.8,52.5,48.9,63.4,35.6,71.4C22.3,79.4,6.6,84.4,-10.1,82.3C-26.8,80.2,-44.5,71.1,-58,58.6C-71.5,46.1,-80.8,30.2,-83.4,13.1C-86,-3.9,-81.9,-22.1,-73.6,-37.6C-65.3,-53.1,-52.8,-65.9,-38.4,-73.2C-24,-80.5,-7.6,-82.3,9.4,-80.2C26.4,-78.1,44.7,-76.4,44.7,-76.4Z" transform="translate(100 100)" />
+            </svg>
+        </div>
+
+        <div class="container mx-auto px-6 relative z-10 text-center">
+            <div class="inline-block px-4 py-1.5 mb-6 text-sm font-semibold tracking-wide text-green-700 uppercase bg-green-100 rounded-full">
+                AI-Powered Citizen Science
+            </div>
+            <h1 class="text-5xl md:text-7xl font-bold mb-6 leading-tight">
+                <span class="gradient-text">全民植物發現地圖</span>
+            </h1>
+            <p class="text-lg md:text-xl text-slate-600 mb-10 max-w-2xl mx-auto leading-relaxed">
+                將世界變成一座活的植物圖鑑。利用 AI 視覺辨識與 GPS 定位，紀錄每一株植物的發現，建立全民參與的生態時空地圖。
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <a href="https://crayfish-ai-udnqxkwy9u2tjfcclmajki.streamlit.app/" target="_blank" class="px-8 py-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-all transform hover:scale-105 shadow-lg flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-rocket"></i> 立即體驗 App
+                </a>
+                <a href="https://github.com/thwsby2009-blip/crayfish-ai" target="_blank" class="px-8 py-4 bg-white text-slate-700 font-bold rounded-xl border border-slate-200 hover:bg-slate-50 transition-all flex items-center justify-center gap-2 shadow-sm">
+                    <i class="fa-brands fa-github"></i> 查看原始碼
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="py-24 bg-slate-50">
+        <div class="container mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4">核心功能亮點</h2>
+                <div class="h-1 w-20 bg-green-500 mx-auto rounded-full"></div>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8">
+                <!-- Feature 1 -->
+                <div class="p-8 bg-white rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+                    <div class="w-14 h-14 bg-green-100 text-green-600 rounded-2xl flex items-center justify-center text-2xl mb-6">
+                        <i class="fa-solid fa-robot"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">AI 智能辨識</h3>
+                    <p class="text-slate-600 leading-relaxed">
+                        整合 <strong>Gemini 2.5 Flash</strong> 模型，拍照即可自動解析植物的中文名稱、學名與科別，將複雜的植物學知識即時視覺化。
+                    </p>
+                </div>
+
+                <!-- Feature 2 -->
+                <div class="p-8 bg-white rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+                    <div class="w-14 h-14 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center text-2xl mb-6">
+                        <i class="fa-solid fa-location-dot"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">地理資訊系統 (GIS)</h3>
+                    <p class="text-slate-600 leading-relaxed">
+                        透過瀏覽器 <strong>Geolocation API</strong> 獲取即時經緯度，將發現紀錄精準標記在地球座標上，並支援一鍵導航至 Google Maps。
+                    </p>
+                </div>
+
+                <!-- Feature 3 -->
+                <div class="p-8 bg-white rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+                    <div class="w-14 h-14 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center text-2xl mb-6">
+                        <i class="fa-solid fa-calendar-days"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">時空追蹤地圖</h3>
+                    <p class="text-slate-600 leading-relaxed">
+                        實作<strong>月份篩選機制</strong>，讓使用者可以回溯不同時期的植物分佈紀錄，觀察植物在不同季節的生長分佈現象。
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tech Stack Section -->
+    <section class="py-24 bg-white">
+        <div class="container mx-auto px-6">
+            <div class="max-w-4xl mx-auto bg-slate-900 rounded-3xl p-8 md:p-12 text-white relative overflow-hidden shadow-2xl">
+                <div class="relative z-10">
+                    <h2 class="text-3xl font-bold mb-8 flex items-center gap-3">
+                        <i class="fa-solid fa-layer-group text-green-400"></i> 技術實作棧
+                    </h2>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+                        <div class="p-4 bg-slate-800 rounded-xl border border-slate-700 text-center">
+                            <div class="text-sm text-slate-400 mb-1">Frontend</div>
+                            <div class="font-bold text-green-400">Streamlit</div>
+                        </div>
+                        <div class="p-4 bg-slate-800 rounded-xl border border-slate-700 text-center">
+                            <div class="text-sm text-slate-400 mb-1">AI Model</div>
+                            <div class="font-bold text-green-400">Gemini 2.5</div>
+                        </div>
+                        <div class="p-4 bg-slate-800 rounded-xl border border-slate-700 text-center">
+                            <div class="text-sm text-slate-400 mb-1">Backend/DB</div>
+                            <div class="font-bold text-green-400">Supabase</div>
+                        </div>
+                        <div class="p-4 bg-slate-800 rounded-xl border border-slate-700 text-center">
+                            <div class="text-sm text-slate-400 mb-1">Storage</div>
+                            <div class="font-bold text-green-400">S3 / Supabase</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Background glow -->
+                <div class="absolute -top-24 -right-24 w-64 h-64 bg-green-500/20 rounded-full blur-3xl"></div>
+                <div class="absolute -bottom-24 -left-24 w-64 h-64 bg-blue-500/20 rounded-full blur-3xl"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-12 bg-slate-50 border-t border-slate-200">
+        <div class="container mx-auto px-6 text-center">
+            <p class="text-slate-500 text-sm">
+                &copy; 2026 Created by Harry Tsai. Built with Streamlit & Google AI.
+            </p>
+        </div>
+    </footer>
+
+</body>
+</html>
