@@ -7,6 +7,7 @@ from streamlit_js_eval import get_geolocation
 import uuid 
 from PIL import Image
 import io
+import json
 
 # ====================== 0. 頁面基礎設定 (必須最先執行) ======================
 st.set_page_config(page_title="植物發現地圖", layout="centered", page_icon="🌿")
@@ -37,21 +38,39 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 def _init_admin_client(service_key: str):
     return create_client(SUPABASE_URL, service_key)
 
+def _key_role(key: str) -> str:
+    """解碼 JWT payload 取得角色（anon / service_role），解析失敗回 '?'。"""
+    try:
+        import base64
+        payload = key.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        return json.loads(base64.urlsafe_b64decode(payload)).get("role", "?")
+    except Exception:
+        return "?"
+
+
 def get_admin_client():
     """站長管理連線（刪除用）。service key 只存在 Streamlit Secrets，使用者端不可見。
 
-    Streamlit Cloud 設定：App → Settings → Secrets 加入
-        SUPABASE_SERVICE_KEY = "eyJ..."（同專案 service_role key）
-    未設定時回 None，刪除功能會顯示明確錯誤而非靜默失敗。
+    接受 SUPABASE_SERVICE_KEY；相容既有的 SUPABASE_KEY 名稱（僅當該 key
+    的 JWT role 為 service_role 才採用，anon 一律略過）。
+    都找不到或角色不符時回 None，刪除功能顯示明確錯誤而非靜默失敗。
     """
-    service_key = st.secrets.get("SUPABASE_SERVICE_KEY", "")
-    if not service_key:
-        return None
-    try:
-        return _init_admin_client(service_key)
-    except Exception as e:
-        log_error(f"service key 連線失敗: {e}")
-        return None
+    candidates = [
+        st.secrets.get("SUPABASE_SERVICE_KEY", ""),
+        st.secrets.get("SUPABASE_KEY", ""),
+    ]
+    for key in candidates:
+        if not key:
+            continue
+        if _key_role(key) != "service_role":
+            continue
+        try:
+            return _init_admin_client(key)
+        except Exception as e:
+            log_error(f"service key 連線失敗: {e}")
+            return None
+    return None
 
 @st.cache_resource
 def init_connection():
