@@ -30,8 +30,28 @@ if st.session_state['persistent_errors']:
 
 # ====================== 1. 核心設定與身分識別 ======================
 SUPABASE_URL = "https://sxhhphxdkqxkjveqkwtc.supabase.co"
-# 直接將 Key 寫入程式碼以確保連線正確，繞過 Secrets 設定問題
+# anon key（公開金鑰）：瀏覽/上傳用，受 RLS 保護（只能新增，不能改刪任何資料）
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN4aGhwaHhka3F4a2p2ZXFrd3RjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjUxNTksImV4cCI6MjA5MzYwMTE1OX0.VgFCfb55KRv9RYdQE13GXjstue40mykP7I8kYiYfKtU"
+
+@st.cache_resource
+def _init_admin_client(service_key: str):
+    return create_client(SUPABASE_URL, service_key)
+
+def get_admin_client():
+    """站長管理連線（刪除用）。service key 只存在 Streamlit Secrets，使用者端不可見。
+
+    Streamlit Cloud 設定：App → Settings → Secrets 加入
+        SUPABASE_SERVICE_KEY = "eyJ..."（同專案 service_role key）
+    未設定時回 None，刪除功能會顯示明確錯誤而非靜默失敗。
+    """
+    service_key = st.secrets.get("SUPABASE_SERVICE_KEY", "")
+    if not service_key:
+        return None
+    try:
+        return _init_admin_client(service_key)
+    except Exception as e:
+        log_error(f"service key 連線失敗: {e}")
+        return None
 
 @st.cache_resource
 def init_connection():
@@ -138,6 +158,7 @@ st.markdown(
 )
 
 st.title("🌿 全民植物發現地圖")
+st.caption("學術／公民科學用途：本平台為生物多樣性調查記錄之共享地圖，觀測資料公開供生態研究使用，並非商用娛樂性質。")
 
 # ====================== 3. GPS 定位區 ======================
 location = get_geolocation()
@@ -149,6 +170,8 @@ if location:
     st.success(f"📍 定位成功：`{curr_lat:.4f}, {curr_lon:.4f}`")
 else:
     st.warning("⚠️ 等待 GPS 定位中...（請確保已開啟瀏覽器定位權限）")
+
+st.caption("📍 公開揭露：上傳的觀測座標將以精確值顯示於共享地圖（生態調研需要精確定位）。座標涉及私人領地或敏感位置時，請勿上傳該筆觀測。")
 
 # ====================== 4. 照片輸入區 ======================
 img_file = None
@@ -290,13 +313,20 @@ try:
                     if is_mine:
                         with col_del:
                             if st.button("🗑️", key=f"del_{p['id']}"):
-                                try:
-                                    supabase.table("plants").delete().eq("id", p['id']).execute()
-                                    st.success("已刪除")
-                                    time.sleep(0.5)
-                                    st.rerun()
-                                except Exception as e:
-                                    log_error(f"刪除失敗: {e}")
+                                admin = get_admin_client()
+                                if admin is None:
+                                    st.error("站長尚未設定 SUPABASE_SERVICE_KEY（Streamlit Secrets），刪除功能停用")
+                                else:
+                                    try:
+                                        del_res = admin.table("plants").delete().eq("id", p['id']).execute()
+                                        if len(del_res.data or []) == 1:
+                                            st.success("已刪除")
+                                            time.sleep(0.5)
+                                            st.rerun()
+                                        else:
+                                            st.error(f"刪除失敗（實際影響 {len(del_res.data or [])} 列）")
+                                    except Exception as e:
+                                        log_error(f"刪除失敗: {e}")
                     else:
                         st.caption("🔒 唯讀模式")
 
